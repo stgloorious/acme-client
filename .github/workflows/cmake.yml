@@ -24,7 +24,7 @@ jobs:
       run: sudo apt -y install libcurl4-openssl-dev
       
     - name: Installing cJSON
-      run: sudo apt -y install libcjson1
+      run: sudo apt -y install libcjson-dev
 
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
