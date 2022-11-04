@@ -1,0 +1,11 @@
+project(acme-client)
+cmake_minimum_required(VERSION 3.23)
+set(CMAKE_CXX_STANDARD 17)
+
+find_package(OpenSSL REQUIRED)
+find_package(CURL REQUIRED)
+
+file(GLOB sources src/*.c)
+
+add_executable(acme-client ${sources})
+target_link_libraries(acme-client OpenSSL::SSL cjson CURL::libcurl)
