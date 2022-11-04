@@ -20,6 +20,12 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
+    - name: Updating package repository
+      run: sudo apt update && sudo apt -y upgrade
+
+    - name: Installing OpenSSL
+      run: sudo apt -y openssl-dev
+    
     - name: Installing curl
       run: sudo apt -y install libcurl4-openssl-dev
       
