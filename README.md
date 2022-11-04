@@ -1,4 +1,6 @@
 # acme-client
+[![CMake](https://github.com/stgloorious/acme-client/actions/workflows/cmake.yml/badge.svg?branch=master)](https://github.com/stgloorious/acme-client/actions/workflows/cmake.yml)
+
 Simple ACME client written in C
 
 ## Installation
