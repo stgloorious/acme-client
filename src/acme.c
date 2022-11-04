@@ -30,7 +30,7 @@
 #include <openssl/sha.h>
 #include <unistd.h>
 
-#include <cjson/cJSON.h>
+#include <cjson.h>
 
 #include "string.h"
 #include "acme.h"
