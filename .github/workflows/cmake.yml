@@ -24,7 +24,7 @@ jobs:
       run: sudo apt update && sudo apt -y upgrade
 
     - name: Installing OpenSSL
-      run: sudo apt -y openssl-dev
+      run: sudo apt -y install openssl-dev
     
     - name: Installing curl
       run: sudo apt -y install libcurl4-openssl-dev
