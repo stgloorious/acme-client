@@ -322,3 +322,42 @@ int8_t crypt_strip_cert(char* cert_pem) {
         return 0; 
 }
 
+char* crypt_mktoken(EVP_PKEY** key, char* header, char* payload) {
+         /* Base64-encode payload and header separately */
+        uint16_t header_len = (strlen(header) + 1) * 1.5;
+        char* header64 = malloc(header_len);
+        base64url((uint8_t*)header, header64, strlen(header), header_len);
+        free(header);
+        
+        uint16_t payload_len = (strlen(payload) + 1) * 1.5;
+        char* payload64 = malloc(payload_len);
+        base64url((uint8_t*)payload, payload64, strlen(payload), payload_len);
+
+        /* The token that is signed consists of concatenated base64-encoded
+         * header and payload, separated by '.' */
+        char* token2sign = malloc(header_len + payload_len + 1);
+        sprintf(token2sign, "%s.%s", header64, payload64);
+       
+        /* Sign the token */
+        /* TODO check if signature size is always 64 bytes */
+        uint16_t token_len = header_len + payload_len + 1 + 64;
+        char* token = malloc(token_len);
+        crypt_sign(token2sign, *key, token, token_len);
+        free(token2sign);
+
+        /* The token that is actually sent in HTTP POST body is 
+         * a JSON that includes the base64-encoded values */
+        uint16_t body_len = header_len + payload_len + token_len;
+        body_len += strlen( "{\"protected\":\"\","
+                            "\"payload\":\"\","
+                            "\"signature\":\"\"}" );
+        char* body = malloc(body_len);
+        sprintf(body, "{\"protected\":\"%s\","
+                      "\"payload\":\"%s\","
+                      "\"signature\":\"%s\"}", header64, payload64, token);
+
+        free(header64);
+        free(payload64);
+        free(token);
+        return body;
+}

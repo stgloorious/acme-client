@@ -96,11 +96,15 @@ int main (int argc, char** argv) {
         acme_server_add_resource(server, ACME_RES_DIR, arguments.dir_url);
         if (acme_server_add_cert(server, arguments.server_cert) != 0) {
                 acme_server_delete(server);
+                acme_cleanup();
+                EVP_PKEY_free(key);
                 return -1;
         }
         if(acme_get_resources(server) != 0){
                 fprintf(stderr, "Could not obtain ACME resource URLs.\n");
                 acme_server_delete(server);
+                acme_cleanup();
+                EVP_PKEY_free(key);
                 return -1;
         } 
         
