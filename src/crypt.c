@@ -182,11 +182,8 @@ int8_t crypt_sign(const char* msg, EVP_PKEY* key,
         
         /* R and S values are 32 byte, so we need 64 byte for 
          * hex representation + NULL terminator */
-        char r[256] = {0};
-        char s[256] = {0};
-
-        strcpy(r,BN_bn2hex(ec_sig_r));
-        strcpy(s,BN_bn2hex(ec_sig_s));
+        char* r = BN_bn2hex(ec_sig_r);
+        char* s = BN_bn2hex(ec_sig_s);
 
         //printf("R: %s\nS: %s\n", r, s);
         
@@ -199,6 +196,9 @@ int8_t crypt_sign(const char* msg, EVP_PKEY* key,
         memcpy(cat_sig, r, 64);
         memcpy(cat_sig+64, s, 64);
         cat_sig[128]='\0';
+
+        free(r);
+        free(s);
 
         /* convert to binary */
         uint8_t cat_sig_b[512] = {0};

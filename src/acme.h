@@ -35,43 +35,74 @@ struct acme_header {
         char* url;
 };
 
+struct acme_server {
+        char** resources; // Array of resource URLs, uses acme_rsrc as index 
+        char* ca_cert; // CA certificate used to sign the server's HTTPS cert
+        
+        // TODO implement
+        char* nonce; // nonce included in every HTTP POST
+};
+
+enum acme_rsrc { ACME_RES_DIR, 
+                 ACME_RES_KEYCHANGE, 
+                 ACME_RES_NEW_ACC, 
+                 ACME_RES_NEW_NONCE, 
+                 ACME_RES_NEW_ORDER,
+                 ACME_RES_NEW_AUTHZ,
+                 ACME_RES_REVOKE_CERT,
+                 ACME_RES_ORDER_LIST,
+                 ACME_NUMBER_OF_RES }; // This must always be the last entry
+
 enum acme_validation { ACME_VALIDATION_HTTP, ACME_VALIDATION_DNS };
 
+#define ACME_MAX_NONCE_LENGTH 64
 
 void acme_print_jwk();
 
-int8_t acme_cert_fsm(EVP_PKEY** key, struct string_node* domain_list,
-                enum acme_validation validation_method);
+struct acme_server* acme_server_new();
 
-int8_t acme_new_acc(EVP_PKEY** key);
+int8_t acme_server_delete(struct acme_server* server);
 
-int8_t acme_new_order(EVP_PKEY** key, struct string_node* domain_list,
+int8_t acme_server_add_resource( struct acme_server* server, 
+                                 enum acme_rsrc resource,
+                                 char* url );
+int8_t acme_server_add_cert( struct acme_server* server, char* ca_cert);
+
+int8_t acme_cert_fsm( EVP_PKEY** key, 
+                      struct acme_server* server,
+                      struct string_node* domain_list,
+                      enum acme_validation validation_method );
+
+int8_t acme_new_acc(EVP_PKEY** key, struct acme_server* server);
+
+int8_t acme_new_order(EVP_PKEY** key, struct acme_server* server,
+                struct string_node* domain_list,
                 struct string_node** authz_list);
 
-int8_t acme_get_chal(EVP_PKEY** key, struct string_node* authz_list, 
+int8_t acme_get_chal(EVP_PKEY** key, struct acme_server* server, struct string_node* authz_list, 
                 enum acme_validation chal_type);
 
-int8_t acme_check_chal(EVP_PKEY** key);
+int8_t acme_check_chal(EVP_PKEY** key, struct acme_server* server);
 
-int8_t acme_resp_chal(EVP_PKEY** key);
+int8_t acme_resp_chal(EVP_PKEY** key, struct acme_server* server);
 
-int8_t acme_add_root_cert(char* file);
+int8_t acme_add_root_cert(char* file, char* ca_cert);
 
-int8_t acme_list_orders(EVP_PKEY** key);
+int8_t acme_list_orders(EVP_PKEY** key, struct acme_server* server);
 
-int8_t acme_finalize(EVP_PKEY** key, struct string_node* domain_list);
+int8_t acme_finalize(EVP_PKEY** key, struct acme_server* server, struct string_node* domain_list);
 
-int8_t acme_get_resources();
+int8_t acme_get_resources(struct acme_server* server);
 
-int8_t acme_get_order_status(EVP_PKEY** key);
+int8_t acme_get_order_status(EVP_PKEY** key, struct acme_server* server);
 
-int8_t acme_get_cert(EVP_PKEY** key);
+int8_t acme_get_cert(EVP_PKEY** key, struct acme_server* server);
 
-int8_t acme_revoke_cert(EVP_PKEY** key, char* certfile);
+int8_t acme_revoke_cert(EVP_PKEY** key, struct acme_server* server, char* certfile);
 
-int8_t acme_new_nonce(char* nonce_resource, char* nonce, uint8_t len);
+int8_t acme_new_nonce(struct acme_server* server);
 
-void acme_write_header(char* out, uint16_t len, struct acme_header* header);
+char* acme_write_header(struct acme_header* header);
 
 void acme_write_payload(char* out, uint16_t len);
 
@@ -83,3 +114,4 @@ char* acme_get_token(char* url);
 
 char* acme_get_token_dns();
 
+void acme_cleanup();

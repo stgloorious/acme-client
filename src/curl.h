@@ -19,8 +19,15 @@
  *
  */
 
-int8_t curl_post
-(char* url, char* post, void* write_cb, void* header_cb, char* header);
+int8_t curl_post( char* url, 
+                  char* post,
+                  void* write_cb,
+                  void* header_cb,
+                  char* header, 
+                  char* ca_cert );
 
-int8_t curl_get(char* url, void* header_cb, void* write_cb);
+int8_t curl_get( char* url, 
+                 void* header_cb, 
+                 void* write_cb, 
+                 char* ca_cert );
 

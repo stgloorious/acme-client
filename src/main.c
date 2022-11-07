@@ -60,6 +60,7 @@ int main (int argc, char** argv) {
         arguments.domain_list = NULL;
         arguments.ndomain = 0;
         arguments.revoke = 0;
+        arguments.server_cert = "";
         arguments.verbose = 0;
 
         argp_parse(&argp, argc, argv, 0, 0, &arguments);
@@ -71,70 +72,48 @@ int main (int argc, char** argv) {
                 printf("ndomain = %i\n", arguments.ndomain);
                 for (int i = 0; i < arguments.ndomain; i++){
                         char buf[256];
-                        string_list_pop_back(arguments.domain_list, buf);
+                        string_list_pop_back(arguments.domain_list, buf, sizeof(buf));
                         printf("DOMAIN = %s\n", buf);
                 }
                 printf("DIR_URL = %s\n", arguments.dir_url);
                 printf("record = %s\n", arguments.record);
                 printf("revoke = %i\n", arguments.revoke);
+                printf("ca_cert = %s\n", arguments.server_cert);
                 printf("verbose = %i\n\n", arguments.verbose);
 #endif
-        }
-#ifdef CONFIG_LOG_FILE
-        FILE *logf;
-        if ((logf=freopen("log.txt", "w", stdout)) == NULL) {
-                printf("Cannot open log file.\n");
-                return -1;
-        }
-#endif
         printf("Using OpenSSL version: %s\n", OPENSSL_VERSION_TEXT); 
-      
+        }
+         
+        
         EVP_PKEY *key = NULL;
         crypt_new_key(&key);
 
-        
-        pthread_t dns_thr;
-        pthread_t http_shutdown_thr;
-        pthread_t http_chal_thr;
-        pthread_t https_cert_thr;
-        void* dns_thr_result;
-        void* http_shutdown_thr_result;
-        void* http_chal_thr_result;
-        void* https_cert_thr_result;
- 
-        struct dns_args dargs = { 10053, arguments.record };
-        pthread_create(&dns_thr, NULL, dns_server, &dargs);
-        printf("DNS server started on port %i\n", dargs.port);
- 
-        struct http_shutdown_args sargs = { 5003, arguments.record };
-        pthread_create(&http_shutdown_thr, NULL, 
-                        http_shutdown_server, &sargs);
-        printf("HTTP shutdown server started on port %i\n", sargs.port);
-        
-        struct http_chal_args cargs = { 5002, arguments.record };
-        pthread_create(&http_chal_thr, NULL, 
-                        http_chal_server, &cargs);
-        printf("HTTP challenge server started on port %i\n", cargs.port);
-       
-
-
-        //acme_print_jwk();
-
- //       char* nonce;
-      
-        setvbuf (stdout, NULL, _IONBF, BUFSIZ);
-        acme_get_resources();
-
-        // TODO remove
-        struct string_node* copy = string_list_copy(arguments.domain_list);
-        char buf[512] = {0};
-        copy = string_list_pop_back(copy, buf, sizeof(buf));
-        if (buf[0] == '*'){
-                //printf("Detected wildcard domain, removing.\n");
-                //arguments.domain_list = 
-                  //      string_list_pop_back(arguments.domain_list, NULL, 0);
+        /* The only information we have about the ACME server is the dir 
+         * resource. The other resource urls are obtained by sending a 
+         * request to this dir resource 
+         */
+        struct acme_server* server = acme_server_new();
+        acme_server_add_resource(server, ACME_RES_DIR, arguments.dir_url);
+        if (acme_server_add_cert(server, arguments.server_cert) != 0) {
+                acme_server_delete(server);
+                return -1;
         }
+        if(acme_get_resources(server) != 0){
+                fprintf(stderr, "Could not obtain ACME resource URLs.\n");
+                acme_server_delete(server);
+                return -1;
+        } 
+        
+        /* Request a new account, which is identified by our key */
+        if (acme_new_acc(&key, server)) {
+                fprintf(stderr, "Could not create account.\n");
+        }
+        
+        acme_server_delete(server);
+        acme_cleanup(); 
+        EVP_PKEY_free(key);
 
+        /*
         enum acme_validation method = ACME_VALIDATION_DNS;
         if (!(strcmp(arguments.challenge_type, "dns01"))){
                 method = ACME_VALIDATION_DNS;        
@@ -142,30 +121,15 @@ int main (int argc, char** argv) {
         else if (!(strcmp(arguments.challenge_type, "http01"))){
                 method = ACME_VALIDATION_HTTP; 
         }
-        while ((acme_cert_fsm(&key, arguments.domain_list, method) == 0) 
+        while ((acme_cert_fsm(&key, server, arguments.domain_list, method) == 0) 
                 && !int_shutdown);
 
         if (arguments.revoke){
                 printf("Revoking certificate.\n");
-                acme_revoke_cert(&key, "cert.crt");          
+                acme_revoke_cert(&key, server, "cert.crt");          
         }
-
-        struct https_args hargs = { 5001, arguments.record };
-        pthread_create(&https_cert_thr, NULL, 
-                        https_cert_server, &hargs);
-        printf("HTTPS certificate server started on port %i\n", hargs.port);
-
-        printf("All done, waiting for GET /shutdown\n");
-
-        pthread_join(dns_thr, &dns_thr_result);
-        pthread_join(http_shutdown_thr, &http_shutdown_thr_result);
-        pthread_join(http_chal_thr, &http_chal_thr_result);
-        pthread_join(https_cert_thr, &https_cert_thr_result);
-#ifdef CONFIG_LOG_FILE       
-        fflush(logf);
-        fclose(logf);
-#endif
-        printf("Goodbye!\n");
+*/
+       // pthread_join(http_chal_thr, &http_chal_thr_result);
         return 0;
 }
 

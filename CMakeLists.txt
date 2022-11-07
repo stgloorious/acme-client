@@ -9,3 +9,7 @@ file(GLOB sources src/*.c)
 
 add_executable(acme-client ${sources})
 target_link_libraries(acme-client OpenSSL::SSL cjson CURL::libcurl)
+
+set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -g -Og -ggdb")
+set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DCONFIG_PRINT_ARGS")
+

@@ -18,7 +18,7 @@
  *
  */
 
-const char* argp_program_version = "acme-client 0.1";
+const char* argp_program_version = "acme-client v0.1";
 const char* argp_program_bug_address = "<code@stefan-gloor.ch>";
 
 static char doc[] = "Simple ACME client written in C";
@@ -27,16 +27,20 @@ static char args_doc[] = "CHALLENGE TYPE {dns01 | http01}";
 
 static struct argp_option options[] = {
         {"dir",      'u', "DIR_URL",      0,
-                "Directory URL of the ACME server that should be used."},
+                "Directory URL of the ACME server that should be used.", 0},
         {"record",   'r', "IPv4_ADDRESS", 0,
                 "IPv4 ADDRESS which must be returned by your DNS server for "
-                        "all A-record queries"},
+                        "all A-record queries", 0},
         {"domain",   'd', "DOMAIN",       0,
                 "Domain for which to request the certificate. Can be used "
-                        "multiple times."},
+                        "multiple times.", 0},
         {"revoke",   'R', 0,              OPTION_ARG_OPTIONAL,
-                "Revoke certificate immediately after it has been obtained."},
-        {"verbose",  'v', 0,         0, "Produce verbose output"},
+                "Revoke certificate immediately after it has been obtained.", 0},
+        {"chal-server", 's', 0,           OPTION_ARG_OPTIONAL,
+                "Start an HTTP server to validate challenge automatically.", 0},
+        {"server-cert", 1, "CERTFILE", OPTION_ARG_OPTIONAL,
+                "CA certificate file used by the ACME server", 0},
+        {"verbose",  'v', 0,         0, "Produce verbose output", 0},
         { 0 }
 };
 
@@ -44,9 +48,10 @@ struct arguments {
         char* challenge_type;
         char* dir_url;
         char* record;
+        char* server_cert;
         struct string_node* domain_list;
         int ndomain;
-        int revoke, verbose;
+        int revoke, chal_server, verbose;
 };
 
 static error_t 
@@ -69,19 +74,19 @@ parse_opt (int key, char* arg, struct argp_state *state)
                 case 'R':
                         arguments->revoke = 1;
                         break;
+                case 's':
+                        arguments->chal_server = 1;
                 case 'v':
                         arguments->verbose = 1;
+                        break;
+                case 1:
+                        arguments->server_cert = arg;
                         break;
                 case ARGP_KEY_NO_ARGS:
                         argp_usage(state);
                 case ARGP_KEY_ARG:
                         if (*arguments->dir_url == '\0') {
                                 argp_error(state, "--dir DIR_URL is required!");
-                                return ARGP_ERR_UNKNOWN;
-                        }
-                        if (*arguments->record == '\0') {
-                                argp_error(state, "--record IPv4_ADDRESS "
-                                                "is required!");
                                 return ARGP_ERR_UNKNOWN;
                         }
                         if (arguments->ndomain == 0) {
@@ -107,5 +112,5 @@ parse_opt (int key, char* arg, struct argp_state *state)
         return 0;
 };
 
-static struct argp argp = {options, parse_opt, args_doc, doc};
+static struct argp argp = {options, parse_opt, args_doc, doc, NULL, NULL};
 
