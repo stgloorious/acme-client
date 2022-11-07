@@ -109,15 +109,25 @@ int main (int argc, char** argv) {
         } 
         
         /* Request a new account, which is identified by our key */
-        if (acme_new_acc(&key, server)) {
+        uint8_t retry_count = 0;
+        while (acme_new_acc(&key, server)) {
                 fprintf(stderr, "Could not create account.\n");
+                if (retry_count < 3){
+                        retry_count++;
+                }
+                else {
+                        return -1;
+                }
+                sleep(2);
         }
         
-        acme_server_delete(server);
-        acme_cleanup(); 
-        EVP_PKEY_free(key);
-
-        /*
+        pthread_t http_chal_thr;
+        void* http_chal_thr_result;
+        struct http_chal_args cargs = {80, arguments.record };
+        pthread_create(&http_chal_thr, NULL, 
+                        http_chal_server, &cargs);
+        printf("HTTP challenge server started on port %i\n", cargs.port);
+ 
         enum acme_validation method = ACME_VALIDATION_DNS;
         if (!(strcmp(arguments.challenge_type, "dns01"))){
                 method = ACME_VALIDATION_DNS;        
@@ -128,12 +138,15 @@ int main (int argc, char** argv) {
         while ((acme_cert_fsm(&key, server, arguments.domain_list, method) == 0) 
                 && !int_shutdown);
 
-        if (arguments.revoke){
+/*        if (arguments.revoke){
                 printf("Revoking certificate.\n");
                 acme_revoke_cert(&key, server, "cert.crt");          
         }
 */
-       // pthread_join(http_chal_thr, &http_chal_thr_result);
+        pthread_join(http_chal_thr, &http_chal_thr_result);
+        acme_server_delete(server);
+        acme_cleanup(); 
+        EVP_PKEY_free(key);
         return 0;
 }
 

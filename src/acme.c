@@ -39,6 +39,8 @@
 #include "b64.h"
 #include "curl.h"
 
+extern uint8_t verbose;
+
 char* acme_nonce = NULL;
 char acme_location[256];
 char acme_kid[64];
@@ -62,7 +64,7 @@ enum acme_state { ACME_STATE_IDLE, ACME_STATE_GET_ACC,
         ACME_STATE_CHECK_CHAL, ACME_STATE_FINALIZE,
         ACME_STATE_WAIT_FOR_CERT, ACME_STATE_GET_CERT };
 
-enum acme_state acme_fsm_state = ACME_STATE_GET_ACC;
+enum acme_state acme_fsm_state = ACME_STATE_NEW_ORDER;
 
 static char* acme_srv_response = NULL;
 
@@ -113,15 +115,6 @@ int8_t acme_cert_fsm (  EVP_PKEY** key,
         cJSON* status;
         cJSON* cert;
         switch(acme_fsm_state){
-                case ACME_STATE_IDLE:
-                        return 0;
-                        break;
-                case ACME_STATE_GET_ACC:
-                        printf("Requesting account.\n");
-                        if (!acme_new_acc(key, server)) {
-                                acme_fsm_state = ACME_STATE_NEW_ORDER;
-                        }
-                        break;
                 case ACME_STATE_NEW_ORDER:
                         acme_new_order(key, server, domain_list, &acme_authz_list);
                         resp = acme_parse_srv_resp();
@@ -134,7 +127,6 @@ int8_t acme_cert_fsm (  EVP_PKEY** key,
                                 }
                         }
                         else {
-                                acme_fsm_state = ACME_STATE_GET_ACC;
                                 sleep(1);
                         }
                         break;
@@ -282,8 +274,8 @@ size_t acme_write_callback(char *ptr, size_t size,
         acme_srv_response = malloc(size*nmemb+1);
         memcpy(acme_srv_response,ptr,nmemb);
         acme_srv_response[nmemb] = '\0';
-        //printf("called write_callback:\n%p\n%s\n",
-        //                acme_srv_response,acme_srv_response);
+        printf("called write_callback:\n%p\n%s\n",
+                        acme_srv_response,acme_srv_response);
         return size*nmemb;  
 }
 
@@ -334,7 +326,7 @@ int8_t acme_new_acc(EVP_PKEY** key, struct acme_server* server){
 
         /* Wait for response */
         //TODO timeout
-        while(acme_srv_response != NULL);
+        while(acme_srv_response == NULL);
 
         /* Parse the response */
         cJSON* srv_resp = cJSON_Parse(acme_srv_response);
@@ -394,6 +386,11 @@ int8_t acme_new_order(EVP_PKEY** key, struct acme_server* server, struct string_
         hdr.nonce = acme_nonce;
         hdr.url = server->resources[ACME_RES_NEW_ORDER];
         char* header = acme_write_header(&hdr);
+        
+        if (verbose){
+                printf("Placing new order at: %s\n", 
+                         server->resources[ACME_RES_NEW_ORDER]);
+        }
 
         char payload[1024];
         //strcpy(payload, "{\"identifiers\":["
@@ -988,13 +985,27 @@ int8_t acme_get_resources(struct acme_server* server){
         cJSON* acc = cJSON_GetObjectItemCaseSensitive(res, "newAccount");
         cJSON* order = cJSON_GetObjectItemCaseSensitive(res, "newOrder");
         cJSON* revoke = cJSON_GetObjectItemCaseSensitive(res, "revokeCert");
-        cJSON* key_change = cJSON_GetObjectItemCaseSensitive(res, "key-change");
+        cJSON* key_change = cJSON_GetObjectItemCaseSensitive(res, "keyChange");
+        cJSON* meta = cJSON_GetObjectItemCaseSensitive(res, "meta");
+        cJSON* terms = cJSON_GetObjectItemCaseSensitive(meta, "termsOfService");
+
+        if (cJSON_IsString(terms)){
+                printf("Terms of service are located at %s\n", terms->valuestring);
+        }
+        printf("Do you agree to the terms of service? [Y/n]");
+        char answer;
+        scanf("%c", &answer);
+        if (answer != 'y' && answer != 'Y' && answer != 0x0A){
+                fprintf(stderr, "You must agree to the terms of service"
+                                " in order to continue.\n");
+                return -2; 
+        }
 
         acme_server_add_resource(server, ACME_RES_NEW_NONCE, nonce->valuestring);
         acme_server_add_resource(server, ACME_RES_NEW_ACC, acc->valuestring);
         acme_server_add_resource(server, ACME_RES_NEW_ORDER, order->valuestring);
         acme_server_add_resource(server, ACME_RES_REVOKE_CERT, revoke->valuestring);
-
+ 
         if (res != NULL) 
                 cJSON_Delete(res);
 
@@ -1010,8 +1021,15 @@ char* acme_write_header(struct acme_header* header){
         char* out;
 
         /* get length of header fields */
-        uint16_t len = strlen(header->alg) + strlen(header->jwk)
+        uint16_t len;
+        if (header->kid == NULL){
+                len = strlen(header->alg) + strlen(header->jwk)
                         + strlen(header->nonce) + strlen(header->url);
+        } 
+        else {
+                len = strlen(header->alg) + strlen(header->kid)
+                        + strlen(header->nonce) + strlen(header->url);
+        }
         /* add constant length of labels
          * note that the longer variant (kid) */
         len += strlen("{\"alg\":\"\","
