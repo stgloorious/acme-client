@@ -307,32 +307,45 @@ int8_t acme_new_acc(EVP_PKEY** key, struct acme_server* server){
                 }
         }
 
+        /* Header */
         struct acme_header hdr;
         hdr.alg = "ES256";
         hdr.jwk = "{\"kty\":\"EC\",\"crv\":\"P-256\","
                   "\"x\":\"UECgzSZsrPD_B1drn3AaFHk3BujhFVy_SdMYm01SC7w\","
                   "\"y\":\"ec-zCqPse3--Nrgr5rjzfOzKO02sf9tLeLJGNxl3fGs\"}";
         hdr.nonce = acme_nonce;
-        hdr.url = "https://pebble:14000/sign-me-up";
+        hdr.url = server->resources[ACME_RES_NEW_ACC];
         hdr.kid = NULL;
+        
         char* header = acme_write_header(&hdr);
+        
+        /* Payload */
         char payload[] = "{\"termsOfServiceAgreed\":true}";
 
+        /* Base64-encode payload and header separately */
         uint16_t header_len = (strlen(header) + 1) * 1.5;
         char* header64 = malloc(header_len);
         base64url((uint8_t*)header,header64,strlen(header),header_len);
+        free(header);
         
         uint16_t payload_len = (strlen(payload) + 1) * 1.5;
         char* payload64 = malloc(payload_len);
         base64url((uint8_t*)payload,payload64,strlen(payload),payload_len);
 
+        /* The token that is signed consists of concatenated base64-encoded
+         * header and payload, separated by '.' */
         char* token2sign = malloc(header_len + payload_len + 1);
         sprintf(token2sign,"%s.%s",header64,payload64);
-
-        uint16_t token_len = header_len + payload_len + 1 + 32;
+       
+        /* Sign the token */
+        /* TODO check if signature size is always 64 bytes */
+        uint16_t token_len = header_len + payload_len + 1 + 64;
         char* token = malloc(token_len);
         crypt_sign(token2sign, *key, token, token_len);
+        free(token2sign);
 
+        /* The token that is actually sent in HTTP POST body is 
+         * a JSON that includes the base64-encoded values */
         uint16_t body_len = header_len + payload_len + token_len;
         body_len += strlen( "{\"protected\":\"\","
                             "\"payload\":\"\","
@@ -342,17 +355,21 @@ int8_t acme_new_acc(EVP_PKEY** key, struct acme_server* server){
                       "\"payload\":\"%s\","
                       "\"signature\":\"%s\"}", header64, payload64, token);
 
-        free(header);
         free(header64);
         free(payload64);
-        free(token2sign);
         free(token);
 
+        /* Make the HTTP POST request */
         curl_post(server->resources[ACME_RES_NEW_ACC], body, acme_write_callback,
                         acme_new_acc_header_callback, NULL, server->ca_cert); 
 
         free(body);
-        assert(acme_srv_response != NULL);
+
+        /* Wait for response */
+        //TODO timeout
+        while(acme_srv_response != NULL);
+
+        /* Parse the response */
         cJSON* srv_resp = cJSON_Parse(acme_srv_response);
         if (srv_resp == NULL){
                 const char* err = cJSON_GetErrorPtr();
