@@ -38,6 +38,7 @@
 #include "crypt.h"
 #include "b64.h"
 #include "curl.h"
+#include "id_list.h"
 
 extern uint8_t verbose;
 
@@ -302,9 +303,16 @@ int8_t acme_new_acc(EVP_PKEY** key, struct acme_server* server){
         /* Header */
         struct acme_header hdr;
         hdr.alg = "ES256";
-        hdr.jwk = "{\"kty\":\"EC\",\"crv\":\"P-256\","
-                  "\"x\":\"UECgzSZsrPD_B1drn3AaFHk3BujhFVy_SdMYm01SC7w\","
-                  "\"y\":\"ec-zCqPse3--Nrgr5rjzfOzKO02sf9tLeLJGNxl3fGs\"}";
+        cJSON* jwk = cJSON_CreateObject();
+        cJSON* kty = cJSON_CreateString("EC");
+        cJSON* crv = cJSON_CreateString("P-256");
+        cJSON* x = cJSON_CreateString("UECgzSZsrPD_B1drn3AaFHk3BujhFVy_SdMYm01SC7w");
+        cJSON* y = cJSON_CreateString("ec-zCqPse3--Nrgr5rjzfOzKO02sf9tLeLJGNxl3fGs");
+        cJSON_AddItemToObject(jwk, "kty", kty);
+        cJSON_AddItemToObject(jwk, "crv", crv);
+        cJSON_AddItemToObject(jwk, "x", x);
+        cJSON_AddItemToObject(jwk, "y", y);
+        hdr.jwk = cJSON_Print(jwk); 
         hdr.nonce = acme_nonce;
         hdr.url = server->resources[ACME_RES_NEW_ACC];
         hdr.kid = NULL;

@@ -123,7 +123,7 @@ int main (int argc, char** argv) {
         
         pthread_t http_chal_thr;
         void* http_chal_thr_result;
-        struct http_chal_args cargs = {80, arguments.record };
+        struct http_chal_args cargs = {5080, arguments.record };
         pthread_create(&http_chal_thr, NULL, 
                         http_chal_server, &cargs);
         printf("HTTP challenge server started on port %i\n", cargs.port);

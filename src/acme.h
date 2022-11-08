@@ -55,6 +55,42 @@ enum acme_rsrc { ACME_RES_DIR,
 
 enum acme_validation { ACME_VALIDATION_HTTP, ACME_VALIDATION_DNS };
 
+enum acme_status { ACME_STATUS_VALID, 
+                   ACME_STATUS_PENDING,
+                   ACME_STATUS_READY,
+                   ACME_STATUS_PROCESSING,
+                   ACME_STATUS_INVALID };
+enum acme_id_type { ACME_ID_DNS };
+
+struct acme_identifier {
+        enum acme_id_type type;
+        char* value;
+};
+
+struct acme_order {
+        enum acme_status status;
+        struct id_node* identifiers;
+        struct string_node* authz;
+        char* finalize_url;
+        char* cert_url;
+};
+
+struct acme_auth {
+        enum acme_status status;
+        struct id_node* identifiers;
+        struct chal_node* challenges;
+        uint8_t wildcard;
+};
+
+enum acme_chal_type { ACME_CHAL_HTTP01, ACME_CHAL_DNS01 };
+
+struct acme_chal {
+        enum acme_chal_type type;
+        char* url;
+        enum acme_status status;
+        char* token;
+};
+
 #define ACME_MAX_NONCE_LENGTH 64
 
 void acme_print_jwk();
@@ -67,6 +103,8 @@ int8_t acme_server_add_resource( struct acme_server* server,
                                  enum acme_rsrc resource,
                                  char* url );
 int8_t acme_server_add_cert( struct acme_server* server, char* ca_cert);
+
+struct acme_order* acme_order_new();
 
 int8_t acme_cert_fsm( EVP_PKEY** key, 
                       struct acme_server* server,
