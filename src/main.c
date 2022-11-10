@@ -60,8 +60,9 @@ int main (int argc, char** argv) {
         arguments.domain_list = NULL;
         arguments.ndomain = 0;
         arguments.revoke = 0;
-        arguments.server_cert = "";
+        arguments.server_cert = NULL;
         arguments.verbose = 0;
+        arguments.tos_agree = 0;
 
         argp_parse(&argp, argc, argv, 0, 0, &arguments);
         verbose = arguments.verbose;
@@ -70,23 +71,31 @@ int main (int argc, char** argv) {
                 printf("Given command line options:\n");
                 printf("CHALLENGE_TYPE = %s\n", arguments.challenge_type);
                 printf("ndomain = %i\n", arguments.ndomain);
+                struct string_node* domains = string_list_copy(arguments.domain_list);
                 for (int i = 0; i < arguments.ndomain; i++){
                         char buf[256];
-                        string_list_pop_back(arguments.domain_list, buf, sizeof(buf));
+                        domains = string_list_pop_back(domains, buf, sizeof(buf));
                         printf("DOMAIN = %s\n", buf);
                 }
+                string_list_delete(domains);         
                 printf("DIR_URL = %s\n", arguments.dir_url);
                 printf("record = %s\n", arguments.record);
                 printf("revoke = %i\n", arguments.revoke);
                 printf("ca_cert = %s\n", arguments.server_cert);
+                printf("tos_agree = %i\n", arguments.tos_agree);
                 printf("verbose = %i\n\n", arguments.verbose);
 #endif
         printf("Using OpenSSL version: %s\n", OPENSSL_VERSION_TEXT); 
         }
-         
         
+        /* An account represents the client */
+        struct acme_account client;
         EVP_PKEY *key = NULL;
         crypt_new_key(&key);
+        client.key = &key;
+        client.order_list = NULL;
+        client.status = ACME_STATUS_UNKNOWN;
+        client.order = malloc(sizeof(struct acme_order));
 
         /* The only information we have about the ACME server is the dir 
          * resource. The other resource urls are obtained by sending a 
@@ -100,7 +109,7 @@ int main (int argc, char** argv) {
                 EVP_PKEY_free(key);
                 return -1;
         }
-        if(acme_get_resources(server) != 0){
+        if(acme_get_resources(server, arguments.tos_agree) != 0){
                 fprintf(stderr, "Could not obtain ACME resource URLs.\n");
                 acme_server_delete(server);
                 acme_cleanup();
@@ -110,7 +119,7 @@ int main (int argc, char** argv) {
         
         /* Request a new account, which is identified by our key */
         uint8_t retry_count = 0;
-        while (acme_new_acc(&key, server)) {
+        while (acme_new_acc(&client, server)) {
                 fprintf(stderr, "Could not create account.\n");
                 if (retry_count < 3){
                         retry_count++;
@@ -120,13 +129,6 @@ int main (int argc, char** argv) {
                 }
                 sleep(2);
         }
-        
-        pthread_t http_chal_thr;
-        void* http_chal_thr_result;
-        struct http_chal_args cargs = {5080, arguments.record };
-        pthread_create(&http_chal_thr, NULL, 
-                        http_chal_server, &cargs);
-        printf("HTTP challenge server started on port %i\n", cargs.port);
  
         enum acme_validation method = ACME_VALIDATION_DNS;
         if (!(strcmp(arguments.challenge_type, "dns01"))){
@@ -135,14 +137,20 @@ int main (int argc, char** argv) {
         else if (!(strcmp(arguments.challenge_type, "http01"))){
                 method = ACME_VALIDATION_HTTP; 
         }
-        while ((acme_cert_fsm(&key, server, arguments.domain_list, method) == 0) 
-                && !int_shutdown);
 
-/*        if (arguments.revoke){
-                printf("Revoking certificate.\n");
-                acme_revoke_cert(&key, server, "cert.crt");          
-        }
-*/
+        /* run state machine that places order */
+        while ((acme_fsm_order(&client, server, arguments.domain_list) == 0)&& !int_shutdown);
+       
+        //TODO add manual validation
+        printf("Performing automatic validation\n");
+        /* Start HTTP server used to validate challenges */
+        pthread_t http_chal_thr;
+        void* http_chal_thr_result;
+        struct http_chal_args cargs = {5080, arguments.record };
+        pthread_create(&http_chal_thr, NULL, 
+                        http_chal_server, &cargs);
+        printf("HTTP challenge server started on port %i\n", cargs.port);
+
         pthread_join(http_chal_thr, &http_chal_thr_result);
         acme_server_delete(server);
         acme_cleanup(); 

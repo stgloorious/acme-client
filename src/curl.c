@@ -94,6 +94,13 @@ int8_t curl_get(char* url, char* header_cb, void* write_cb, char* ca_cert){
                         curl_easy_cleanup(curl);
                         return -1;
                 }
+                uint64_t scode;
+                curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &scode);
+                if ((scode < 200) || (scode >= 300)){
+                        fprintf(stderr, "curl error: status code %lu\n", scode);
+                        curl_easy_cleanup(curl);
+                        return -1;
+                }
         }
         else {
                 curl_easy_cleanup(curl);
