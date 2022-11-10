@@ -65,7 +65,8 @@ enum acme_state { ACME_STATE_IDLE, ACME_STATE_GET_ACC,
         ACME_STATE_CHECK_CHAL, ACME_STATE_FINALIZE,
         ACME_STATE_WAIT_FOR_CERT, ACME_STATE_GET_CERT };
 
-enum acme_state acme_fsm_state = ACME_STATE_NEW_ORDER;
+enum acme_state acme_fsm_order_state = ACME_STATE_NEW_ORDER;
+enum acme_state acme_fsm_validate_state = ACME_STATE_RESP_CHAL;
 
 static char* acme_srv_response = NULL;
 
@@ -134,16 +135,13 @@ static enum acme_status acme_get_status(char* str){
 int8_t acme_fsm_order (  struct acme_account* client, 
                         struct acme_server* server, 
                         struct string_node* domain_list ){
-        cJSON* resp;
-        cJSON* status;
-        cJSON* cert;
-
-        switch(acme_fsm_state){
+        
+        switch(acme_fsm_order_state){
                 case ACME_STATE_NEW_ORDER:
                         acme_new_order(client, server, domain_list);
                         if (client->order->status == ACME_STATUS_PENDING){
                                 if (verbose) printf("Order placing successful.\n");
-                                acme_fsm_state = ACME_STATE_GET_AUTH;
+                                acme_fsm_order_state = ACME_STATE_GET_AUTH;
                         }
                         else {
                                 if (verbose) printf("Could not place order, retrying\n");
@@ -154,6 +152,7 @@ int8_t acme_fsm_order (  struct acme_account* client,
                         if (verbose) printf("Getting authorizations.\n");
                         if (!acme_get_auth(client, server)){
                                 if (verbose) printf("Obtained all authorizations\n");        
+                                acme_fsm_order_state = ACME_STATE_NEW_ORDER;
                                 return 1;
                         }
                         else {
@@ -166,33 +165,27 @@ int8_t acme_fsm_order (  struct acme_account* client,
         }
         return 0;
 }
-/*                case ACME_STATE_RESP_CHAL:
+int8_t acme_fsm_validate( struct acme_account* client,
+                          struct acme_server* server ) {
+
+        switch(acme_fsm_validate_state){
+                case ACME_STATE_RESP_CHAL:
                         printf("Responding to challenges.\n");
                         acme_resp_chal(client, server);
-                        resp = acme_parse_srv_resp();
-                        status = cJSON_GetObjectItemCaseSensitive
-                                (resp, "status"); 
-                        if (cJSON_IsString(status)){
-                                if (!strcmp(status->valuestring, "pending")){
-                                        acme_fsm_state = 
-                                                ACME_STATE_CHECK_CHAL;
-                                }
-                        }
-                        else {
-                                acme_fsm_state = ACME_STATE_GET_AUTH;
-                        }
                         break;
                 case ACME_STATE_CHECK_CHAL:
                         printf("Checking challenge state.\n");
                         
                         switch (acme_check_chal(client, server)){
                                 case 0:
-                                        acme_fsm_state = ACME_STATE_FINALIZE;
+                                        acme_fsm_validate_state 
+                                                = ACME_STATE_FINALIZE;
                                         break;
                                 case -1: 
                                         break;
                                 case -2: 
-                                        acme_fsm_state = ACME_STATE_GET_AUTH;
+                                        acme_fsm_validate_state 
+                                                = ACME_STATE_GET_AUTH;
                                         break;
                         }
                         sleep(1);
@@ -200,46 +193,19 @@ int8_t acme_fsm_order (  struct acme_account* client,
                         break;
                 case ACME_STATE_FINALIZE:
                         printf("Challenges successful, finalizing.\n");
-                        acme_finalize(client, server, domain_list);
-                        resp = acme_parse_srv_resp();
-                        status = cJSON_GetObjectItemCaseSensitive
-                                (resp, "status"); 
-                        if (cJSON_IsString(status)){
-                                if (!strcmp(status->valuestring, "processing")){
-                                        acme_fsm_state = 
-                                                ACME_STATE_WAIT_FOR_CERT;
-                                        return 0;
-                                }
-                        }
-                        else {
-                                acme_fsm_state = ACME_STATE_CHECK_CHAL;
-                        }
+                        //acme_finalize(client, server, domain_list);
                         sleep(1);
                         return 0;
                         break;
                 case ACME_STATE_WAIT_FOR_CERT:
                         printf("Waiting for server to issue certificate.\n");
                         acme_get_order_status(client, server);
-                        resp = acme_parse_srv_resp();
-                        status = cJSON_GetObjectItemCaseSensitive
-                                (resp, "status"); 
-                        cert = cJSON_GetObjectItemCaseSensitive
-                                (resp, "certificate"); 
-                        if (cJSON_IsString(status) && cJSON_IsString(cert)){
-                                if (!strcmp(status->valuestring, "valid")) {
-                                        acme_fsm_state = 
-                                                ACME_STATE_GET_CERT;
-                                        strcpy(acme_cert, cert->valuestring);
-                                        return 0;
-                                }
-                        }
                         sleep(1);
                         return 0;
                 case ACME_STATE_GET_CERT:
                         printf("Certificate is ready.\n");
                         acme_get_cert(client, server);
-                        acme_fsm_state = ACME_STATE_GET_ACC;
-                       
+                        acme_fsm_validate_state = ACME_STATE_GET_ACC; 
                         acme_add_root_cert(server->ca_cert);
 
                         sleep(1);
@@ -254,7 +220,7 @@ int8_t acme_fsm_order (  struct acme_account* client,
                         return -1;
         }
         return 0;
-}*/
+}
 
 size_t acme_header_cb (char* buf, size_t size, size_t nitems){ 
         if (!strncmp("Location", buf, 8)) {
@@ -597,7 +563,6 @@ int8_t acme_get_auth( struct acme_account* client,
                         (srv_resp, "wildcard"); 
                 cJSON* identifier = cJSON_GetObjectItemCaseSensitive
                         (srv_resp, "identifier");
-                cJSON* id_type = cJSON_GetObjectItemCaseSensitive(identifier, "type");
                 cJSON* id_value = cJSON_GetObjectItemCaseSensitive(identifier, "value");
          
                 struct acme_identifier* new_id = malloc(sizeof(struct acme_identifier));
@@ -656,11 +621,9 @@ int8_t acme_get_auth( struct acme_account* client,
                 //cJSON_Delete(srv_resp);
                
                 /* check for wildcard domain */
-                int is_wildcard=0;
                 if (cJSON_IsBool(wildcard)){
                         if (wildcard->valueint){
                                 printf("Wildcard domain detected: using dns-01\n");
-                                is_wildcard=1;
                         }
                 }
                 
@@ -692,8 +655,8 @@ char* acme_get_token_dns() {
         printf("Using token %s\n", token);
         strcpy(token+strlen(token),".");
         strcpy(token+strlen(token),acme_thumbprint);
-        SHA256(token, strlen(token), digest);
-        base64url(digest, token, 32, 512);
+        SHA256((const unsigned char*)token, strlen(token), (unsigned char*)digest);
+        base64url((uint8_t*)digest, token, 32, 512);
         printf("DNS token: *%s* at %p\n", token, token);
         return token; 
 }
@@ -701,7 +664,6 @@ int8_t acme_resp_chal(struct acme_account* client, struct acme_server* server){
         char signature[512] = {0};
         char post[2048] = {0};
 
-        char header[1024] = {0};
         assert(acme_chal_url_list != NULL);
         struct string_node* chal_list = string_list_copy(acme_chal_url_list);
         while (chal_list != NULL) {
@@ -1083,8 +1045,8 @@ int8_t acme_get_resources(struct acme_server* server, uint8_t accept_tos){
                 if (!accept_tos){
                         printf("Do you agree to the terms of service? [Y/n]");
                         char answer;
-                        scanf("%c", &answer);
-                        if (answer != 'y' && answer != 'Y' && answer != 0x0A){
+                        int len = scanf("%c", &answer);
+                        if (len == 1 && answer != 'y' && answer != 'Y' && answer != 0x0A){
                                 fprintf(stderr, "You must agree to the terms of service"
                                                 " in order to continue.\n");
                                 return -2; 

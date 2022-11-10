@@ -47,7 +47,7 @@ uint8_t verbose = 0;
 volatile sig_atomic_t int_shutdown = 0;
 
 static void int_handler(int dummy) {
-        int_shutdown = (dummy > 0); 
+        int_shutdown = 1; 
 }
 
 int main (int argc, char** argv) {

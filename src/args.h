@@ -90,6 +90,7 @@ parse_opt (int key, char* arg, struct argp_state *state)
                         break;
                 case ARGP_KEY_NO_ARGS:
                         argp_usage(state);
+                        break;
                 case ARGP_KEY_ARG:
                         if (*arguments->dir_url == '\0') {
                                 argp_error(state, "--dir DIR_URL is required!");
@@ -118,5 +119,4 @@ parse_opt (int key, char* arg, struct argp_state *state)
         return 0;
 };
 
-static struct argp argp = {options, parse_opt, args_doc, doc, NULL, NULL};
-
+static struct argp argp = {options, parse_opt, args_doc, doc, NULL, NULL, NULL};

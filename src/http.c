@@ -44,14 +44,6 @@ extern volatile sig_atomic_t int_shutdown;
 const char* http_method_strings[] = {"GET", "HEAD", "POST", "PUT", "DELETE", 
         "CONNECT", "OPTIONS", "TRACE"};
 
-void* http_shutdown_server(void* port){
-        struct http_shutdown_args args 
-                = *((struct http_shutdown_args*)port);
-        int con;
-        http_start(args.port, args.host, &con);
-        return NULL;
-}
-
 void* http_chal_server(void* port){
         struct http_chal_args args 
                 = *((struct http_chal_args*)port);

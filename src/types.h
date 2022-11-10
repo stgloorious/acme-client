@@ -53,3 +53,6 @@ authz_list_pop_back (struct authz_node* head, struct acme_auth* out);
 
 void id_list_delete(struct id_node* list);
 
+void authz_list_delete(struct authz_node* list);
+
+void chal_list_delete(struct chal_node* list);

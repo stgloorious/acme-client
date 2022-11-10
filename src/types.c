@@ -66,6 +66,7 @@ id_list_pop_back (struct id_node* head, struct acme_identifier* out) {
                 current = current->next;
         }
         assert(current != NULL); 
+        memcpy(out, current->id, sizeof(struct acme_identifier));
         if (head == current){
                 free(head->id);
                 free(head);
@@ -120,6 +121,7 @@ chal_list_pop_back (struct chal_node* head, struct acme_chal* out) {
                 current = current->next;
         }
         assert(current != NULL); 
+        memcpy(out, current->chal, sizeof(struct acme_chal));
         if (head == current){
                 free(head->chal);
                 free(head);
@@ -174,6 +176,7 @@ authz_list_pop_back (struct authz_node* head, struct acme_auth* out) {
                 current = current->next;
         }
         assert(current != NULL); 
+        memcpy(out, current->auth, sizeof(struct acme_auth));
         if (head == current){
                 free(head->auth);
                 free(head);

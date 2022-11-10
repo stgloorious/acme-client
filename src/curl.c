@@ -68,10 +68,6 @@ int8_t curl_post
         return 0;
 }
 
-size_t cb(char* ptr, size_t size, size_t nmemb, void* userdata){
-        return size*nmemb;
-}
-
 int8_t curl_get(char* url, char* header_cb, void* write_cb, char* ca_cert){
         CURL *curl;
         CURLcode res;
