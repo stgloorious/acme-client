@@ -54,11 +54,12 @@ int main (int argc, char** argv) {
         signal(SIGINT, int_handler);
         struct arguments arguments;
 
-        arguments.dir_url = "";
-        arguments.record = "";
+        arguments.dir_url = "https://acme-v02.api.letsencrypt.org/directory";
+        arguments.record = "127.0.0.1";
         arguments.domain_list = NULL;
         arguments.ndomain = 0;
         arguments.revoke = 0;
+        arguments.port = "80";
         arguments.server_cert = NULL;
         arguments.verbose = 0;
         arguments.tos_agree = 0;
@@ -151,7 +152,7 @@ int main (int argc, char** argv) {
                 /* Start HTTP server used to validate challenges */
                 pthread_t http_chal_thr;
                 void* http_chal_thr_result;
-                struct http_chal_args cargs = {80, arguments.record};
+                struct http_chal_args cargs = {atoi(arguments.port), arguments.record};
                 pthread_create(&http_chal_thr, NULL, 
                                 http_chal_server, &cargs);
                 printf("HTTP challenge server started on port %i\n", cargs.port);

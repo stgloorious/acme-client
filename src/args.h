@@ -30,6 +30,7 @@ static struct argp_option options[] = {
                 "Directory URL of the ACME server that should be used.", 0},
         {"record",   'r', "IPv4_ADDRESS", 0,
                 "IPv4 the HTTP server should bind to", 0},
+        {"port", 'p', "PORT", 0, "Port number the HTTP server should bind to", 0},
         {"domain",   'd', "DOMAIN",       0,
                 "Domain for which to request the certificate. Can be used "
                         "multiple times.", 0},
@@ -49,6 +50,7 @@ struct arguments {
         char* challenge_type;
         char* dir_url;
         char* record;
+        char* port;
         char* server_cert;
         struct string_node* domain_list;
         int ndomain;
@@ -83,6 +85,9 @@ parse_opt (int key, char* arg, struct argp_state *state)
                         break;
                 case 'y':
                         arguments->tos_agree = 1;
+                        break;
+                case 'p':
+                        arguments->port = arg;
                         break;
                 case 1:
                         arguments->server_cert = arg;

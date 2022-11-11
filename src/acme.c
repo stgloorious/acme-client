@@ -877,7 +877,7 @@ int8_t acme_finalize(struct acme_account* client, struct acme_server* server,
         FILE* keyfile;
         keyfile = fopen("client.key", "w");
         PEM_write_PKCS8PrivateKey(keyfile, csr_key, 
-                        EVP_des_ede3_cbc(), NULL, 0, 0, "password");
+                        NULL, NULL, 0, 0, "");
         fclose(keyfile);
 
         char payload[4096];
