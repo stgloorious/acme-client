@@ -17,13 +17,14 @@ ACME (Automatic Certificate Management Environment) is a protocol specified by [
 - Testing
 
 ## Usage 
-    ./acme-client --help
     Usage: acme-client [OPTION...] CHALLENGE TYPE {dns01 | http01}
     Simple ACME client written in C
 
           --cert[=CERTFILE]      CA certificate file used by the ACME server
       -d, --domain=DOMAIN        Domain for which to request the certificate. Can
                                  be used multiple times.
+      -p, --port=PORT            Port number the HTTP server should bind to
+      -r, --record=IPv4_ADDRESS  IPv4 the HTTP server should bind to
       -u, --dir=DIR_URL          Directory URL of the ACME server that should be
                                  used.
       -v, --verbose              Produce verbose output
@@ -32,9 +33,21 @@ ACME (Automatic Certificate Management Environment) is a protocol specified by [
           --usage                Give a short usage message
       -V, --version              Print program version
 
-### Obtaining a certificate for domain example.com with [Pebble testing server](https://github.com/letsencrypt/pebble)
+### Examples
+#### Obtaining a Let's Encrypt certificate
+1. Stop your webserver, so acme-client can bind to Port 80. For instance if you're using nginx and systemd:
 
-    ./acme-client http01 --agree-tos --dir https://pebble:14000/dir --domain example.com --cert=../pebble.minica.pem
+        systemctl stop nginx
+2. Run acme-client
+
+        ./acme-client --domain <YOUR-DOMAIN-NAME> --record <YOUR-IPv4-ADDRESS> http01
+3. Copy client.key and cert.crt to the right location & restart webserver 
+
+        systemctl start nginx
+    
+#### Obtain a certificate from local [Pebble testing server](https://github.com/letsencrypt/pebble)
+
+    ./acme-client http01 --agree-tos --dir https://pebble:14000/dir --domain example.com --cert=../pebble.minica.pem --port 5080
 
     Terms of service are located at data:text/plain,Do%20what%20thou%20wilt
     Accepting terms of service.
@@ -64,7 +77,7 @@ ACME (Automatic Certificate Management Environment) is a protocol specified by [
         git clone https://github.com/stgloorious/acme-client
         cd acme-client
     
-2. Compilation
+2. Compile
 
         mkdir build
         cd build
