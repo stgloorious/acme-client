@@ -151,7 +151,7 @@ int main (int argc, char** argv) {
                 /* Start HTTP server used to validate challenges */
                 pthread_t http_chal_thr;
                 void* http_chal_thr_result;
-                struct http_chal_args cargs = {5080, "127.0.0.1"};
+                struct http_chal_args cargs = {80, "127.0.0.1"};
                 pthread_create(&http_chal_thr, NULL, 
                                 http_chal_server, &cargs);
                 printf("HTTP challenge server started on port %i\n", cargs.port);
