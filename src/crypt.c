@@ -244,15 +244,20 @@ int8_t crypt_new_csr(EVP_PKEY** key, X509_REQ** csr, char* csr_pem,
                 printf("Could not set public key in CSR.\n");
         }
         
+        struct string_node* domains = string_list_copy(domain_list);
+        char domain[128];
+        domains = string_list_pop_back(domains, domain, sizeof(domain)); 
+
         X509_NAME* name = NULL;
         name = X509_REQ_get_subject_name(*csr);
         X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
-                        (unsigned char*)"example.com", -1, -1, 0);
+                        (unsigned char*)domain, -1, -1, 0);
 
         STACK_OF(X509_EXTENSION)* exts = sk_X509_EXTENSION_new_null();
-        
+       
+        string_list_delete(domains);
+        domains = string_list_copy(domain_list);
         char san[512] = {0};
-        struct string_node* domains = string_list_copy(domain_list);
         while (domains != NULL){
                 char domain[128];
                 domains = string_list_pop_back(domains, domain, sizeof(domain)); 

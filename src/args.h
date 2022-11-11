@@ -28,9 +28,8 @@ static char args_doc[] = "CHALLENGE TYPE {dns01 | http01}";
 static struct argp_option options[] = {
         {"dir",      'u', "DIR_URL",      0,
                 "Directory URL of the ACME server that should be used.", 0},
-        //{"record",   'r', "IPv4_ADDRESS", 0,
-        //        "IPv4 ADDRESS which must be returned by your DNS server for "
-        //                "all A-record queries", 0},
+        {"record",   'r', "IPv4_ADDRESS", 0,
+                "IPv4 the HTTP server should bind to", 0},
         {"domain",   'd', "DOMAIN",       0,
                 "Domain for which to request the certificate. Can be used "
                         "multiple times.", 0},
