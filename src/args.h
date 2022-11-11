@@ -28,17 +28,17 @@ static char args_doc[] = "CHALLENGE TYPE {dns01 | http01}";
 static struct argp_option options[] = {
         {"dir",      'u', "DIR_URL",      0,
                 "Directory URL of the ACME server that should be used.", 0},
-        {"record",   'r', "IPv4_ADDRESS", 0,
-                "IPv4 ADDRESS which must be returned by your DNS server for "
-                        "all A-record queries", 0},
+        //{"record",   'r', "IPv4_ADDRESS", 0,
+        //        "IPv4 ADDRESS which must be returned by your DNS server for "
+        //                "all A-record queries", 0},
         {"domain",   'd', "DOMAIN",       0,
                 "Domain for which to request the certificate. Can be used "
                         "multiple times.", 0},
-        {"revoke",   'R', 0,              OPTION_ARG_OPTIONAL,
-                "Revoke certificate immediately after it has been obtained.", 0},
-        {"chal-server", 's', 0,           OPTION_ARG_OPTIONAL,
-                "Start an HTTP server to validate challenge automatically.", 0},
-        {"server-cert", 1, "CERTFILE", OPTION_ARG_OPTIONAL,
+        //{"revoke",   'R', 0,              OPTION_ARG_OPTIONAL,
+        //        "Revoke certificate immediately after it has been obtained.", 0},
+        //{"chal-server", 's', 0,           OPTION_ARG_OPTIONAL,
+        //        "Start an HTTP server to validate challenge automatically.", 0},
+        {"cert", 1, "CERTFILE", OPTION_ARG_OPTIONAL,
                 "CA certificate file used by the ACME server", 0},
         {"agree-tos", 'y', 0, OPTION_ARG_OPTIONAL, 
                 "Always agree to the terms of service", 0},

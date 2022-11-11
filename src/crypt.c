@@ -37,6 +37,8 @@
 #include "crypt.h"
 #include "b64.h"
 
+extern uint8_t verbose;
+
 /* TODO to be removed, these are testing keys only! */
 char acme_private_key[] = ""
 "-----BEGIN PRIVATE KEY-----\n"
@@ -229,11 +231,11 @@ int8_t crypt_sign(const char* msg, EVP_PKEY* key,
 int8_t crypt_new_csr(EVP_PKEY** key, X509_REQ** csr, char* csr_pem, 
                 uint16_t len, struct string_node* domain_list){
         //TODO error handling
-        printf("Generating new RSA key with 2048 bits.\n");
+        if (verbose) printf("Generating new RSA key with 2048 bits.\n");
         *key = EVP_RSA_gen(2048);
         //crypt_print_key(*key);
 
-        printf("Generating CSR.\n");
+        if (verbose) printf("Generating CSR.\n");
         *csr = X509_REQ_new();
         if (*csr == NULL){
                 printf("Could not generate CSR.\n");
@@ -248,8 +250,7 @@ int8_t crypt_new_csr(EVP_PKEY** key, X509_REQ** csr, char* csr_pem,
                         (unsigned char*)"example.com", -1, -1, 0);
 
         STACK_OF(X509_EXTENSION)* exts = sk_X509_EXTENSION_new_null();
-       
-        string_list_print(domain_list);
+        
         char san[512] = {0};
         struct string_node* domains = string_list_copy(domain_list);
         while (domains != NULL){
@@ -263,7 +264,6 @@ int8_t crypt_new_csr(EVP_PKEY** key, X509_REQ** csr, char* csr_pem,
                         strcpy(alt_name,"DNS:");
                 }
                 strcpy(alt_name+strlen(alt_name), domain);
-                printf("Adding alt_name %s to CSR\n", alt_name);
                 strcpy(san+strlen(san), alt_name);        
         }
         X509_EXTENSION* ex = X509V3_EXT_conf_nid(NULL, NULL, 

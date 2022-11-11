@@ -19,6 +19,12 @@
  *
  */
 
+struct curl_packet_info {
+        char* buffer;
+        uint32_t received;
+        uint32_t total_length;
+};
+
 int8_t curl_post( char* url, 
                   char* post,
                   void* write_cb,

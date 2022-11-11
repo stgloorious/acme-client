@@ -32,17 +32,10 @@ struct http_msg {
         uint16_t status;
 };
 
-struct http_shutdown_args {
-        uint16_t port;
-        char* host;
-};
-
 struct http_chal_args {
         uint16_t port;
         char* host;
 };
-
-void* http_shutdown_server(void* port);
 
 void* http_chal_server(void* port);
 

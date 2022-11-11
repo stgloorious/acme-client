@@ -66,7 +66,9 @@ id_list_pop_back (struct id_node* head, struct acme_identifier* out) {
                 current = current->next;
         }
         assert(current != NULL); 
-        memcpy(out, current->id, sizeof(struct acme_identifier));
+        if (out != NULL) {
+                memcpy(out, current->id, sizeof(struct acme_identifier));
+        }
         if (head == current){
                 free(head->id);
                 free(head);
@@ -104,8 +106,8 @@ chal_list_append (struct chal_node* head, struct acme_chal* new_chal){
         /* allocate new node and append to list */
         struct chal_node* new_node = malloc(sizeof(struct chal_node));
         new_node->next = NULL;
-        new_node->chal = malloc(sizeof(struct acme_identifier));
-        memcpy(new_node->chal, new_chal, sizeof(struct acme_identifier));
+        new_node->chal = malloc(sizeof(struct acme_chal));
+        memcpy(new_node->chal, new_chal, sizeof(struct acme_chal));
         current->next = new_node;
         return head;
 }
@@ -121,7 +123,9 @@ chal_list_pop_back (struct chal_node* head, struct acme_chal* out) {
                 current = current->next;
         }
         assert(current != NULL); 
-        memcpy(out, current->chal, sizeof(struct acme_chal));
+        if (out != NULL) {
+                memcpy(out, current->chal, sizeof(struct acme_chal));
+        }
         if (head == current){
                 free(head->chal);
                 free(head);
@@ -159,15 +163,15 @@ authz_list_append (struct authz_node* head, struct acme_auth* new_auth){
         /* allocate new node and append to list */
         struct authz_node* new_node = malloc(sizeof(struct authz_node));
         new_node->next = NULL;
-        new_node->auth = malloc(sizeof(struct acme_identifier));
-        memcpy(new_node->auth, new_auth, sizeof(struct acme_identifier));
+        new_node->auth = malloc(sizeof(struct acme_auth)); 
+        memcpy(new_node->auth, new_auth, sizeof(struct acme_auth));
         current->next = new_node;
         return head;
 }
 
 struct authz_node*
 authz_list_pop_back (struct authz_node* head, struct acme_auth* out) {
-        assert(head != NULL);
+        if (head == NULL) return NULL;
         /* traverse the list */
         struct authz_node* current = head;
         struct authz_node* prev = head;
@@ -176,7 +180,10 @@ authz_list_pop_back (struct authz_node* head, struct acme_auth* out) {
                 current = current->next;
         }
         assert(current != NULL); 
-        memcpy(out, current->auth, sizeof(struct acme_auth));
+       
+        if (out != NULL) {
+                memcpy(out, current->auth, sizeof(struct acme_auth));
+        }
         if (head == current){
                 free(head->auth);
                 free(head);

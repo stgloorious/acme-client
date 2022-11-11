@@ -95,6 +95,7 @@ int main (int argc, char** argv) {
         client.order_list = NULL;
         client.status = ACME_STATUS_UNKNOWN;
         client.order = malloc(sizeof(struct acme_order));
+        client.authz_list = NULL;
 
         /* The only information we have about the ACME server is the dir 
          * resource. The other resource urls are obtained by sending a 
@@ -129,28 +130,58 @@ int main (int argc, char** argv) {
                 sleep(2);
         }
  
-        enum acme_validation method = ACME_VALIDATION_DNS;
+        enum acme_chal_type method = ACME_CHAL_DNS01;
         if (!(strcmp(arguments.challenge_type, "dns01"))){
-                method = ACME_VALIDATION_DNS;        
+                method = ACME_CHAL_DNS01;        
         }
         else if (!(strcmp(arguments.challenge_type, "http01"))){
-                method = ACME_VALIDATION_HTTP; 
+                method = ACME_CHAL_HTTP01; 
         }
 
         /* run state machine that places order */
-        while ((acme_fsm_order(&client, server, arguments.domain_list) == 0)&& !int_shutdown);
-       
-        //TODO add manual validation
-        printf("Performing automatic validation\n");
-        /* Start HTTP server used to validate challenges */
-        pthread_t http_chal_thr;
-        void* http_chal_thr_result;
-        struct http_chal_args cargs = {5080, arguments.record };
-        pthread_create(&http_chal_thr, NULL, 
-                        http_chal_server, &cargs);
-        printf("HTTP challenge server started on port %i\n", cargs.port);
+        int8_t ret = 0;
+        while ((ret == 0) && !int_shutdown){
+                ret = acme_fsm_order(&client, server, arguments.domain_list);
+        }
+        /* FSM returns 2 if all authorization are already validated */
+        if (ret == 1) {
+                //TODO add manual validation
+                printf("Performing automatic validation\n");
+                
+                /* Start HTTP server used to validate challenges */
+                pthread_t http_chal_thr;
+                void* http_chal_thr_result;
+                struct http_chal_args cargs = {5080, "127.0.0.1"};
+                pthread_create(&http_chal_thr, NULL, 
+                                http_chal_server, &cargs);
+                printf("HTTP challenge server started on port %i\n", cargs.port);
 
-        pthread_join(http_chal_thr, &http_chal_thr_result);
+                /* At this point the challenges should be ready for the server
+                 * to be seen */
+                ret = 0;
+                while (ret == 0 && !int_shutdown) {
+                        ret = acme_fsm_validate(&client, server, method);
+                }
+                if (ret == -1){
+                        int_shutdown = 1;
+                        sleep(2);
+                        return -1;
+                }
+
+                /* All challenges are validated at this point */
+
+                /* Shutdown HTTP server*/
+                int_shutdown = 1;
+                pthread_join(http_chal_thr, &http_chal_thr_result);
+                int_shutdown = 0;
+        }
+        printf("All domains were successfully verified.\n");
+      
+        ret = 0;
+        while (ret == 0 && !int_shutdown){
+                ret = acme_fsm_cert(&client, server, arguments.domain_list);
+        }
+
         acme_server_delete(server);
         acme_cleanup(); 
         EVP_PKEY_free(key);

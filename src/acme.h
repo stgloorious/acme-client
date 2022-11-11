@@ -55,9 +55,6 @@ enum acme_rsrc { ACME_RES_DIR,
                  ACME_RES_ORDER_LIST,
                  ACME_NUMBER_OF_RES }; // This must always be the last entry
 
-/* challenge validation methods */
-enum acme_validation { ACME_VALIDATION_HTTP, ACME_VALIDATION_DNS };
-
 enum acme_status { ACME_STATUS_UNKNOWN,
                    ACME_STATUS_VALID, 
                    ACME_STATUS_PENDING,
@@ -98,6 +95,7 @@ struct acme_order {
          * acme_get_auth(). The authz objects are at 
          * client->authz. */
         struct string_node* authz;
+        char* order_url;
         char* finalize_url;
         char* cert_url; // download cert from here
 };
@@ -153,6 +151,25 @@ int8_t acme_fsm_order ( struct acme_account* client,
                         struct acme_server* server,
                         struct string_node* domain_list );
 
+/**
+ * performs automatic validation for the challenges obtained 
+ * previously.
+ *
+ * @param[inout] client
+ * @param[in] server
+ * @param[in] method
+ */
+int8_t acme_fsm_validate ( struct acme_account* client,
+                           struct acme_server* server,
+                           enum acme_chal_type method );
+
+/* After successful authorization, request the issuance 
+ * of the certificate and download and save it. 
+ */
+int8_t acme_fsm_cert ( struct acme_account* client,
+                       struct acme_server* server,
+                       struct string_node* domain_list);
+
 /* Uses the key in the client object to request a new account in the 
  * server's database. It does not matter if an account already exists.
  *
@@ -177,19 +194,26 @@ int8_t acme_new_order( struct acme_account* client,
  *
  * @param[in] client
  * @param[in] server
+ * @returns 0 if there are pending authz, 1 if all authz are valid, -1 on error
  */
 int8_t acme_get_auth( struct acme_account* client,
                       struct acme_server* server );
 
-int8_t acme_check_chal(struct acme_account* client, struct acme_server* server);
+int8_t acme_check_auth(struct acme_account* client, struct acme_server* server);
 
-int8_t acme_resp_chal(struct acme_account* client, struct acme_server* server);
+/**
+ * Go through the authorizations list and fulfill a challenge each
+ */
+int8_t acme_authorize( struct acme_account* client,
+                       struct acme_server* server,
+                       enum acme_chal_type method );
 
 int8_t acme_add_root_cert(char* ca_cert);
 
 int8_t acme_list_orders(struct acme_account* client, struct acme_server* server);
 
-int8_t acme_finalize(struct acme_account* client, struct acme_server* server, struct string_node* domain_list);
+int8_t acme_finalize(struct acme_account* client, struct acme_server* server,
+                struct string_node* domain_list);
 
 /**
  * Get ACME resources from dir url and save it to @server, ask user for ToS
