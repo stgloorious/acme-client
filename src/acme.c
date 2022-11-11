@@ -375,7 +375,7 @@ int8_t acme_new_acc(struct acme_account* client, struct acme_server* server){
         }
         cJSON* status = cJSON_GetObjectItemCaseSensitive(srv_resp, "status"); 
         cJSON* orders = cJSON_GetObjectItemCaseSensitive(srv_resp, "orders");
-        if (cJSON_IsString(status) && cJSON_IsString(orders)){
+        if (cJSON_IsString(status)){
                 if (strcmp(status->valuestring,"valid")){
                         printf("Server response: status = %s\n", status->valuestring);
                         return -1;
@@ -385,8 +385,10 @@ int8_t acme_new_acc(struct acme_account* client, struct acme_server* server){
                         printf("Account %s is valid\n", acme_kid);
                 }
                 client->status = ACME_STATUS_VALID;
-                client->order_list = malloc(strlen(orders->valuestring)+1);
-                strcpy(client->order_list, orders->valuestring);
+                if (cJSON_IsString(orders)){
+                        client->order_list = malloc(strlen(orders->valuestring)+1);
+                        strcpy(client->order_list, orders->valuestring);
+                }
         }
         else {
                 printf("Account is not valid.\n");
