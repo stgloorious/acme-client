@@ -51,11 +51,12 @@ ACME (Automatic Certificate Management Environment) is a protocol specified by [
 - OpenSSL >= 3.0.0
 - cURL
 - [cJSON](https://github.com/DaveGamble/cJSON)
+- cmake
 
 #### Ubuntu 22.04
-    sudo apt install libcurl4-openssl-dev libcjson-dev openssl
+    sudo apt install libcurl4-openssl-dev libcjson-dev openssl cmake
 #### Gentoo
-    sudo emerge --quiet --ask dev-libs/cJSON =dev-libs/openssl-3.0.7
+    sudo emerge --quiet --ask dev-libs/cJSON =dev-libs/openssl-3.0.7 dev-util/cmake
         
 #### Using CMake
 1. Getting the sources
