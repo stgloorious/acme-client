@@ -1,4 +1,4 @@
-project(acme-client)
+project(acme-client C)
 cmake_minimum_required(VERSION 3.23)
 
 find_package(OpenSSL REQUIRED)
