@@ -35,22 +35,14 @@
 #include <openssl/evp.h>
 #include <cjson/cJSON.h>
 
+#include "acme.h"
 #include "string.h"
 #include "http.h"
-#include "acme.h"
 
 extern volatile sig_atomic_t int_shutdown;
 
 const char* http_method_strings[] = {"GET", "HEAD", "POST", "PUT", "DELETE", 
         "CONNECT", "OPTIONS", "TRACE"};
-
-void* http_shutdown_server(void* port){
-        struct http_shutdown_args args 
-                = *((struct http_shutdown_args*)port);
-        int con;
-        http_start(args.port, args.host, &con);
-        return NULL;
-}
 
 void* http_chal_server(void* port){
         struct http_chal_args args 
@@ -149,7 +141,7 @@ int8_t http_parse(char* buf, uint16_t len, struct http_msg* msg) {
                         }
                 }                
                 split = strtok(NULL, " ");
-                printf("%s ", http_method_strings[msg->method]);
+                //printf("%s ", http_method_strings[msg->method]);
         }
         else {
                 printf("HTTP parse error\n");
@@ -159,7 +151,7 @@ int8_t http_parse(char* buf, uint16_t len, struct http_msg* msg) {
                 msg->request_target = malloc(strlen(split)+1);
                 strcpy(msg->request_target, split);
                 split = strtok(NULL, " ");
-                printf(" %s ", msg->request_target);
+                //printf(" %s ", msg->request_target);
         }
         else {
                 printf("HTTP parse error\n");
@@ -172,8 +164,8 @@ int8_t http_parse(char* buf, uint16_t len, struct http_msg* msg) {
                         }
                 }                
                 split = strtok(NULL, " ");
-                if (msg->version == HTTP11)
-                        printf(" %s\n", "HTTP/1.1");
+                //if (msg->version == HTTP11)
+                //        printf(" %s\n", "HTTP/1.1");
         }
         else {
                 printf("Unsupported HTTP version!\n");
@@ -184,7 +176,7 @@ int8_t http_parse(char* buf, uint16_t len, struct http_msg* msg) {
                 printf("HTTP parse error\n");
                 return -1;
         }
-
+        
         return 0; 
 }
 int8_t http_chal_start(uint16_t port, char* record, int *con) {
@@ -253,70 +245,6 @@ int8_t http_chal_start(uint16_t port, char* record, int *con) {
                 printf("Could not close HTTP challenge socket\n");
         }
         printf("Terminated HTTP challenge server\n");
-        return 0;
-}  
-int8_t http_start(uint16_t port, char* record, int *con) {
-        /* open tcp socket */
-        struct sockaddr_in me, other; 
-        int tcp_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-        me.sin_family = AF_INET;
-        me.sin_port = htons(port);
-        me.sin_addr.s_addr = inet_addr(record);
-        setsockopt(tcp_socket, SOL_SOCKET, SO_REUSEADDR, 
-                        &(int){1}, sizeof(int));
-        setsockopt(tcp_socket, SOL_SOCKET, SO_REUSEPORT, 
-                        &(int){1}, sizeof(int));
-
-        if (bind(tcp_socket, (struct sockaddr*)&me, sizeof(me))) {
-                printf("Error: HTTP shutdown server bind failed.\n");
-                close(tcp_socket);
-                exit(-1);
-                return -1;
-        }
-        listen(tcp_socket, 8);
-        int flags = fcntl(tcp_socket, F_GETFL);
-        flags |= O_NONBLOCK;
-        fcntl(tcp_socket,F_SETFL, flags);
-        struct http_msg msg;
-        char buf[1024];
-        socklen_t addr_len = (socklen_t)sizeof(struct sockaddr_in);
-        *con = -1;
-        while(!int_shutdown && *con == -1) {
-                *con = accept(tcp_socket, (struct sockaddr*)&other,
-                        &addr_len);
-        } 
-        //char c[32];
-        //inet_ntop(AF_INET, ((struct sockaddr*)&other.sin_addr),
-        //        c, sizeof(c));
-
-        while(!int_shutdown) {
-                int16_t rsize = recv(*con, buf, sizeof(buf),0);
-                printf("%i",rsize);
-                if (rsize == 0){
-                        printf("Client disconnected.\n");
-                }
-                else if (rsize > 0){
-                        printf("Read %i bytes:\n%s\n", rsize, buf);
-                        if (http_parse(buf,sizeof(buf),&msg)){
-                                printf("HTTP parsing failed.\n");
-                        }
-                        else {
-                                if (msg.method == GET && 
-                                        msg.version == HTTP11 &&
-                                        !strcmp(msg.request_target,
-                                                "/shutdown")) {
-                                        printf("Received GET /shutdown\n");
-                                        struct http_msg response;
-                                        response.status = HTTP_STATUS_200_OK;
-                                        response.version = HTTP11;
-                                        http_respond(&response, con);
-                                        close(tcp_socket);
-                                        exit(0);
-                                }
-                        }
-                }
-        }
-        printf("Terminated HTTP shutdown server\n");
         return 0;
 }  
 

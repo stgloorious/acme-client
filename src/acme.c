@@ -29,7 +29,8 @@
 #include <openssl/pem.h>
 #include <openssl/sha.h>
 #include <unistd.h>
-
+#include <errno.h>
+#include <signal.h>
 #include <cjson/cJSON.h>
 
 #include "string.h"
@@ -37,10 +38,14 @@
 #include "crypt.h"
 #include "b64.h"
 #include "curl.h"
+#include "types.h"
 
-char acme_nonce[32];
+extern uint8_t verbose;
+extern volatile sig_atomic_t int_shutdown;
+
+char* acme_nonce = NULL;
 char acme_location[256];
-char acme_kid[64];
+char acme_kid[256];
 char acme_finalize_url[512];
 char acme_cert[128];
 char acme_cert_chain[8192] = "";
@@ -54,151 +59,174 @@ struct string_node* acme_authz_list;
 struct string_node* acme_chal_url_list;
 struct string_node* acme_chal_token_list;
 
-enum acme_rsrc { ACME_DIR, ACME_KEYCHANGE, ACME_NEW_ACC, ACME_NEW_NONCE, 
-ACME_NEW_ORDER, ACME_REVOKE_CERT, ACME_ORDER_LIST };
 
 enum acme_state { ACME_STATE_IDLE, ACME_STATE_GET_ACC, 
         ACME_STATE_NEW_ORDER,
-        ACME_STATE_GET_CHAL, ACME_STATE_RESP_CHAL, 
-        ACME_STATE_CHECK_CHAL, ACME_STATE_FINALIZE,
+        ACME_STATE_GET_AUTH, ACME_STATE_AUTHORIZE,
+        ACME_STATE_CHECK_AUTH, ACME_STATE_FINALIZE,
         ACME_STATE_WAIT_FOR_CERT, ACME_STATE_GET_CERT };
 
-enum acme_state acme_fsm_state = ACME_STATE_GET_ACC;
-
-
-char* acme_resources[7] = {
-        "https://pebble:14000/dir",
-        "https://pebble:14000/rollover-account-key",
-        "https://pebble:14000/sign-me-up",
-        "https://pebble:14000/nonce-plz",
-        "https://pebble:14000/order-plz",
-        "https://pebble:14000/revoke-cert",
-        ""
-};
+enum acme_state acme_fsm_order_state = ACME_STATE_NEW_ORDER;
+enum acme_state acme_fsm_validate_state = ACME_STATE_AUTHORIZE;
+enum acme_state acme_fsm_cert_state = ACME_STATE_FINALIZE;
 
 static char* acme_srv_response = NULL;
 
-int8_t acme_cert_fsm(EVP_PKEY** key, struct string_node* domain_list, 
-                enum acme_validation validation_method){
-        cJSON* resp;
-        cJSON* status;
-        cJSON* cert;
-        switch(acme_fsm_state){
-                case ACME_STATE_IDLE:
-                        return 0;
-                        break;
-                case ACME_STATE_GET_ACC:
-                        printf("Requesting account.\n");
-                        if (!acme_new_acc(key)) {
-                                acme_fsm_state = ACME_STATE_NEW_ORDER;
-                        }
-                        break;
+struct acme_server* acme_server_new(){
+        struct acme_server* server = malloc(sizeof(struct acme_server));
+        server->resources = calloc(ACME_NUMBER_OF_RES, sizeof(char*));
+        server->ca_cert = NULL;
+        server->nonce = NULL;
+        return server;
+}
+int8_t acme_server_delete(struct acme_server* server){
+        if (server->ca_cert != NULL){
+                free(server->ca_cert);
+        }
+        for (uint8_t i = 0; i < ACME_NUMBER_OF_RES; i++){
+                if (server->resources[i] != NULL){
+                        free(server->resources[i]);
+                }
+        }
+        free(server->resources);
+        free(server);
+        return 0;
+}
+int8_t acme_server_add_resource( struct acme_server* server, 
+                                 enum acme_rsrc resource,
+                                 char* url ){
+        assert(url != NULL);
+        server->resources[resource] = malloc(strlen(url)+1);
+        strcpy(server->resources[resource], url);
+        return 0; 
+}
+int8_t acme_server_add_cert( struct acme_server* server, char* ca_cert) {
+        if (ca_cert == NULL){
+                server->ca_cert = NULL;
+                return 0;
+        }
+        if(access(ca_cert, R_OK)){
+                fprintf(stderr, "Error reading certificate file \"%s\": %s\n",
+                                ca_cert, strerror(errno));
+                return -1;
+        }
+        server->ca_cert = malloc(strlen(ca_cert)+1);
+        strcpy(server->ca_cert, ca_cert);
+        return 0;
+}
+
+static enum acme_status acme_get_status(char* str){
+        if (!(strcmp(str, "valid"))){
+                return ACME_STATUS_VALID;
+        }
+        if (!(strcmp(str, "pending"))){
+                return ACME_STATUS_PENDING;
+        }
+        if (!(strcmp(str, "ready"))){
+                return ACME_STATUS_READY;
+        }
+        if (!(strcmp(str, "processing"))){
+                return ACME_STATUS_PROCESSING;
+        }
+        if (!(strcmp(str, "invalid"))){
+                return ACME_STATUS_INVALID;
+        }
+        return ACME_STATUS_UNKNOWN;
+}
+
+int8_t acme_fsm_order (  struct acme_account* client, 
+                        struct acme_server* server, 
+                        struct string_node* domain_list ){
+        
+        switch(acme_fsm_order_state){
                 case ACME_STATE_NEW_ORDER:
-                        acme_new_order(key, domain_list, &acme_authz_list);
-                        resp = acme_parse_srv_resp();
-                        status = cJSON_GetObjectItemCaseSensitive
-                                (resp, "status"); 
-                        if (cJSON_IsString(status)){
-                                if (!strcmp(status->valuestring, "pending")){
-                                        printf("Created new order %s.\n", acme_location);
-                                        acme_fsm_state = ACME_STATE_GET_CHAL;
-                                }
+                        acme_new_order(client, server, domain_list);
+                        if (client->order->status == ACME_STATUS_PENDING){
+                                acme_fsm_order_state = ACME_STATE_GET_AUTH;
+                        }
+                        else if (client->order->status == ACME_STATUS_READY){
+                                if (verbose) printf("Order is ready.\n");
+                                acme_fsm_order_state = ACME_STATE_GET_AUTH;
                         }
                         else {
-                                acme_fsm_state = ACME_STATE_GET_ACC;
+                                if (verbose) printf("Could not place order, retrying\n");
                                 sleep(1);
                         }
                         break;
-                case ACME_STATE_GET_CHAL:
-                        printf("Getting challenges.\n");
-                        acme_get_chal(key, acme_authz_list, validation_method);
-                        resp = acme_parse_srv_resp();
-                        status = cJSON_GetObjectItemCaseSensitive
-                                (resp, "status"); 
-                        if (cJSON_IsString(status)){
-                                if (!strcmp(status->valuestring, "pending")){
-                                        acme_fsm_state = ACME_STATE_RESP_CHAL;
-                                }
-                                if (!strcmp(status->valuestring, "valid")){
-                                        acme_fsm_state = ACME_STATE_CHECK_CHAL;
-                                }
-                        }
-                        break;
-                case ACME_STATE_RESP_CHAL:
-                        printf("Responding to challenges.\n");
-                        acme_resp_chal(key);
-                        resp = acme_parse_srv_resp();
-                        status = cJSON_GetObjectItemCaseSensitive
-                                (resp, "status"); 
-                        if (cJSON_IsString(status)){
-                                if (!strcmp(status->valuestring, "pending")){
-                                        acme_fsm_state = 
-                                                ACME_STATE_CHECK_CHAL;
-                                }
-                        }
-                        else {
-                                acme_fsm_state = ACME_STATE_GET_CHAL;
-                        }
-                        break;
-                case ACME_STATE_CHECK_CHAL:
-                        printf("Checking challenge state.\n");
-                        
-                        switch (acme_check_chal(key)){
+                case ACME_STATE_GET_AUTH:
+                        if (verbose) printf("Getting authorizations.\n");
+                        switch (acme_get_auth(client, server)){
                                 case 0:
-                                        acme_fsm_state = ACME_STATE_FINALIZE;
-                                        break;
-                                case -1: 
-                                        break;
-                                case -2: 
-                                        acme_fsm_state = ACME_STATE_GET_CHAL;
-                                        break;
+                                        if (verbose) printf("Obtained all authorizations\n");        
+                                        acme_fsm_order_state = ACME_STATE_NEW_ORDER;
+                                        return 1;
+                                case 1:
+                                        if (verbose) printf("Obtained all authorizations\n");        
+                                        acme_fsm_order_state = ACME_STATE_NEW_ORDER;
+                                        return 2;
+                                default:
+                                fprintf(stderr, "Authorization fetching failed, retrying.\n");
+                                sleep(1);
                         }
-                        sleep(1);
-
                         break;
-                case ACME_STATE_FINALIZE:
-                        printf("Challenges successful, finalizing.\n");
-                        acme_finalize(key, domain_list);
-                        resp = acme_parse_srv_resp();
-                        status = cJSON_GetObjectItemCaseSensitive
-                                (resp, "status"); 
-                        if (cJSON_IsString(status)){
-                                if (!strcmp(status->valuestring, "processing")){
-                                        acme_fsm_state = 
-                                                ACME_STATE_WAIT_FOR_CERT;
-                                        return 0;
-                                }
-                        }
-                        else {
-                                acme_fsm_state = ACME_STATE_CHECK_CHAL;
-                        }
+                default:
+                        return -1;
+        }
+        return 0;
+}
+int8_t acme_fsm_validate( struct acme_account* client,
+                          struct acme_server* server,
+                          enum acme_chal_type method ) {
+
+        switch(acme_fsm_validate_state){
+                case ACME_STATE_AUTHORIZE:
+                        acme_authorize(client, server, method);
+                        acme_fsm_validate_state = ACME_STATE_CHECK_AUTH;
                         sleep(1);
+                        break;
+                case ACME_STATE_CHECK_AUTH:
+                        if (verbose) printf("Checking authorization state.\n");
+                        if (acme_get_auth(client, server) == -1) {
+                                return -1;
+                        }        
+                        if (client->authz_list == NULL){
+                                return 1;
+                        }
+                        sleep(2);
+                        return 0;
+                        break;
+                default:
+                        return -1;
+        }
+        return 0;
+}
+int8_t acme_fsm_cert( struct acme_account* client,
+                          struct acme_server* server,
+                          struct string_node* domain_list) {
+
+        switch(acme_fsm_cert_state){
+                case ACME_STATE_FINALIZE:
+                        if (verbose)
+                        printf("Finalizing: Request server to issue cert.\n");
+                        acme_finalize(client, server, domain_list);
+                        sleep(1);
+                        acme_fsm_cert_state = ACME_STATE_WAIT_FOR_CERT;
                         return 0;
                         break;
                 case ACME_STATE_WAIT_FOR_CERT:
+                        if (verbose)
                         printf("Waiting for server to issue certificate.\n");
-                        acme_get_order_status(key);
-                        resp = acme_parse_srv_resp();
-                        status = cJSON_GetObjectItemCaseSensitive
-                                (resp, "status"); 
-                        cert = cJSON_GetObjectItemCaseSensitive
-                                (resp, "certificate"); 
-                        if (cJSON_IsString(status) && cJSON_IsString(cert)){
-                                if (!strcmp(status->valuestring, "valid")) {
-                                        acme_fsm_state = 
-                                                ACME_STATE_GET_CERT;
-                                        strcpy(acme_cert, cert->valuestring);
-                                        return 0;
-                                }
+                        if (acme_get_order_status(client, server)){
+                                acme_fsm_cert_state = ACME_STATE_GET_CERT;
                         }
                         sleep(1);
                         return 0;
                 case ACME_STATE_GET_CERT:
+                        if (verbose)
                         printf("Certificate is ready.\n");
-                        acme_get_cert(key);
-                        acme_fsm_state = ACME_STATE_GET_ACC;
-                       
-                        acme_add_root_cert("cert.crt");
+                        acme_get_cert(client, server);
+                        acme_fsm_validate_state = ACME_STATE_GET_ACC; 
+                        acme_add_root_cert(server->ca_cert);
 
                         sleep(1);
                         FILE* fd;
@@ -214,108 +242,129 @@ int8_t acme_cert_fsm(EVP_PKEY** key, struct string_node* domain_list,
         return 0;
 }
 
-size_t acme_new_nonce_header_callback
-(char* buf, size_t size, size_t nitems, void* data){ 
-        if (!strncmp("Replay-Nonce", buf, 12)) {
-               strcpy(acme_nonce, buf+14);
-        }
-       return nitems * size;
-}
-
-size_t acme_new_acc_header_callback
-(char* buf, size_t size, size_t nitems, void* data){ 
+size_t acme_header_cb (char* buf, size_t size, size_t nitems, void* packet_info){ 
+        /* The location header points to the url of the 
+         * created object. E.g. after creating an account,
+         * location will contain the url that points to 
+         * that account object */
         if (!strncmp("Location", buf, 8)) {
                 strcpy(acme_location, buf+10);
                 acme_location[strlen(acme_location) - 2] = '\0';
         }
+
+        /* The replay nonce is contained in every response 
+         * and should always be used for the next request */
         if (!strncmp("Replay-Nonce", buf, 12)) {
+                if (acme_nonce == NULL){
+                        acme_nonce = calloc(nitems+1, size);
+                }
                 strcpy(acme_nonce, buf+14);
                 acme_nonce[strlen(acme_nonce) - 2] = '\0';
         }
-return nitems * size;
+
+        /* The content length is used to allocate a buffer,
+         * which is then filled with data by the write_cb.
+         * This is necessary because write_cb might be called
+         * several times for a single packet */
+        if (!strncmp("Content-Length", buf, 14)){
+                int32_t len = atoi(buf+16);
+                struct curl_packet_info* packet 
+                       = (struct curl_packet_info*)packet_info;
+                packet->buffer = malloc(len);
+                packet->received = 0;
+                packet->total_length = len;
+        }
+        return nitems * size;
 }
 
 
-size_t acme_write_callback(char *ptr, size_t size, 
-                size_t nmemb, void *userdata) {
-        //assert(acme_srv_response == NULL);
-        //TODO fix
-        if (acme_srv_response != NULL){
-                printf("WARNING: Potential memory leak, "
-                                "acme_srv_response != NULL\n");
-                free(acme_srv_response);
-                acme_srv_response=NULL;
-        }
+size_t acme_write_cb(char *ptr, size_t size, size_t nmemb, void* packet_info) {
+        assert(acme_srv_response == NULL);
+        
+        /* This struct contains information about the current packet
+         * this write_cb corresponds to. Most of the time all of the
+         * data will be received with a single call to wb, but this is
+         * not always the case */
+        struct curl_packet_info* packet 
+                       = (struct curl_packet_info*)packet_info;
+        assert(packet->buffer != NULL); //buffer allocated in header_cb
 
-        acme_srv_response = malloc(size*nmemb+1);
-        memcpy(acme_srv_response,ptr,nmemb);
-        acme_srv_response[nmemb] = '\0';
-        printf("called write_callback:\n%p\n%s\n",
-                        acme_srv_response,acme_srv_response);
+        /* Append the new data to the buffer */
+        memcpy(packet->buffer+packet->received, ptr, size*nmemb);
+ 
+        packet->received += size*nmemb;
+        if (packet->received == packet->total_length){
+                /* Packet is received completely */
+                acme_srv_response = malloc(packet->total_length + 1);
+                memcpy(acme_srv_response, packet->buffer, packet->total_length); 
+                acme_srv_response[packet->total_length] = '\0';
+                //printf("%s\n",acme_srv_response);
+
+                free(packet->buffer);
+                packet->buffer = NULL;
+                packet->received = 0;
+                packet->total_length = 0;
+            
+        }
         return size*nmemb;  
 }
 
-size_t acme_cert_callback(char *ptr, size_t size, 
-                size_t nmemb, void *userdata) {
+size_t acme_cert_callback(char *ptr, size_t size, size_t nmemb) {
         sprintf(acme_cert_chain+strlen(acme_cert_chain), "%s", ptr);
         return size*nmemb;  
 }
 
-size_t acme_root_cert_callback(char *ptr, size_t size, 
-                size_t nmemb, void *userdata) {
+size_t acme_root_cert_callback(char *ptr, size_t size, size_t nmemb) {
         sprintf(acme_root_cert+strlen(acme_root_cert), "%s", ptr);
         return size*nmemb;  
 }
 
-int8_t acme_new_acc(EVP_PKEY** key){
-        char nonce[128];
-        
-        printf("Requesting new nonce, "); 
-        if (acme_new_nonce(acme_resources[ACME_NEW_NONCE], 
-                        nonce, sizeof(nonce))) {
-                printf("failed.\n");
-                return -1;
+int8_t acme_new_acc(struct acme_account* client, struct acme_server* server){
+        if (verbose) printf("Requesting account.\n");
+        /* if no nonce is available, request a new one */
+        if (acme_nonce == NULL) {
+                if (acme_new_nonce(server)) {
+                        return -1;
+                }
         }
-        printf("got %s\n", nonce);
 
-        /* copy and strip \n */
-        strcpy(acme_nonce, nonce);
-        
-        char signature[4096] = {0};
-        char post[16384] = {0};
-
-        char header[2048] = {0};
+        /* Header */
         struct acme_header hdr;
         hdr.alg = "ES256";
-        hdr.jwk = "{\"kty\":\"EC\",\"crv\":\"P-256\","
-                  "\"x\":\"UECgzSZsrPD_B1drn3AaFHk3BujhFVy_SdMYm01SC7w\","
-                  "\"y\":\"ec-zCqPse3--Nrgr5rjzfOzKO02sf9tLeLJGNxl3fGs\"}";
-        hdr.nonce = nonce;
-        hdr.url = "https://pebble:14000/sign-me-up";
+        cJSON* jwk = cJSON_CreateObject();
+        cJSON* kty = cJSON_CreateString("EC");
+        cJSON* crv = cJSON_CreateString("P-256");
+        cJSON* x = cJSON_CreateString("UECgzSZsrPD_B1drn3AaFHk3BujhFVy_SdMYm01SC7w");
+        cJSON* y = cJSON_CreateString("ec-zCqPse3--Nrgr5rjzfOzKO02sf9tLeLJGNxl3fGs");
+        cJSON_AddItemToObject(jwk, "kty", kty);
+        cJSON_AddItemToObject(jwk, "crv", crv);
+        cJSON_AddItemToObject(jwk, "x", x);
+        cJSON_AddItemToObject(jwk, "y", y);
+        hdr.jwk = cJSON_Print(jwk); 
+        hdr.nonce = acme_nonce;
+        hdr.url = server->resources[ACME_RES_NEW_ACC];
         hdr.kid = NULL;
-        acme_write_header(header,sizeof(header),&hdr);
 
-        char payload[2048] = {0};
-        acme_write_payload(payload,sizeof(payload));
+        /* Assemble the JWT */
+        char* header = acme_write_header(&hdr);
+        char payload[] = "{\"termsOfServiceAgreed\":true}";
+        char* token = crypt_mktoken(client->key, header, payload);
 
-        char msg[8192];
-        char header64[2048];
-        base64url((uint8_t*)header,header64,strlen(header),sizeof(msg));
-        
-        char payload64[2048];
-        base64url((uint8_t*)payload,payload64,strlen(payload),sizeof(msg));
+        /* Make the HTTP POST request */
+        curl_post( server->resources[ACME_RES_NEW_ACC], 
+                   token, 
+                   acme_write_cb,
+                   acme_header_cb, 
+                   NULL, 
+                   server->ca_cert ); 
 
-        sprintf(msg,"%s.%s",header64,payload64);
-        crypt_sign(msg,*key,signature,sizeof(signature));
+        free(token);
 
-        sprintf(post,"{\"protected\":\"%s\",\"payload\":\"%s\","
-                        "\"signature\":\"%s\"}",
-                        header64,payload64,signature);
+        /* Wait for response */
+        //TODO timeout
+        while(acme_srv_response == NULL);
 
-        curl_post(acme_resources[ACME_NEW_ACC], post, acme_write_callback,
-                        acme_new_acc_header_callback, NULL); 
-        
-        assert(acme_srv_response != NULL);
+        /* Parse the response */
         cJSON* srv_resp = cJSON_Parse(acme_srv_response);
         if (srv_resp == NULL){
                 const char* err = cJSON_GetErrorPtr();
@@ -324,23 +373,33 @@ int8_t acme_new_acc(EVP_PKEY** key){
                 }
                 return -1;
         }
-        //acme_print_srv_response(acme_srv_response);
         cJSON* status = cJSON_GetObjectItemCaseSensitive(srv_resp, "status"); 
         cJSON* orders = cJSON_GetObjectItemCaseSensitive(srv_resp, "orders");
         if (cJSON_IsString(status) && cJSON_IsString(orders)){
                 if (strcmp(status->valuestring,"valid")){
                         printf("Server response: status = %s\n", status->valuestring);
+                        return -1;
                 }
-                printf("Account is valid.\n");
-                acme_resources[ACME_ORDER_LIST] = 
-                        malloc(strlen(orders->valuestring)+1);
-                strcpy(acme_resources[ACME_ORDER_LIST], orders->valuestring);
+                strcpy(acme_kid, acme_location);
+                if (verbose) {
+                        printf("Account %s is valid\n", acme_kid);
+                }
+                client->status = ACME_STATUS_VALID;
+                client->order_list = malloc(strlen(orders->valuestring)+1);
+                strcpy(client->order_list, orders->valuestring);
         }
         else {
-                printf("Server response parse error\n");
-            
-                printf("Using token:\n%s.%s\n", msg, signature);
-                printf("POST:\n%s\n", post);
+                printf("Account is not valid.\n");
+                
+                /* The cause may be an incorrent nonce, so get a new 
+                 * one just in case that fixes it */
+                if (acme_nonce){
+                        free(acme_nonce);
+                        acme_nonce = NULL;
+                        acme_new_nonce(server);
+                }
+
+                acme_print_srv_response(srv_resp);
                 cJSON_Delete(srv_resp);
                 free(acme_srv_response);
                 acme_srv_response = NULL;
@@ -366,39 +425,32 @@ cJSON* acme_parse_srv_resp(){
 }
 
 
-int8_t acme_new_order(EVP_PKEY** key, struct string_node* domain_list,
-                struct string_node** authz_list){
-        char signature[512] = {0};
-        char post[2048] = {0};
-
-        char header[1024] = {0};
+int8_t acme_new_order( struct acme_account* client,
+                       struct acme_server* server, 
+                       struct string_node* domain_list ){
+        if (verbose){
+                printf("Updating order at: %s\n", 
+                         server->resources[ACME_RES_NEW_ORDER]);
+        }
+ 
+        /* Header */
         struct acme_header hdr;
         hdr.alg = "ES256";
-        hdr.kid = acme_location;
-        strcpy(acme_kid, hdr.kid);
+        hdr.kid = acme_kid;
         hdr.nonce = acme_nonce;
-        hdr.url = acme_resources[ACME_NEW_ORDER];
-        acme_write_header(header,sizeof(header),&hdr);
-
-        char payload[1024];
-        //strcpy(payload, "{\"identifiers\":["
-                       //"{\"type\":\"dns\","
-                       // "\"value\":\"example.com\"},"
-        //                "{\"type\":\"dns\","
-        //                "\"value\":\"example.com\"}]}");
-        
+        hdr.url = server->resources[ACME_RES_NEW_ORDER];
+       
+        /* Payload */ 
         cJSON* id;
-        char domain[64];
-
         cJSON* ids = cJSON_CreateArray();
         cJSON* identifiers = cJSON_CreateObject();
-      
+     
+        char domain[ACME_MAX_DOMAIN_LENGTH] = {0};
         assert(domain_list != NULL);
         struct string_node* domains = string_list_copy(domain_list);
         while (domains != NULL) {
                 domains = string_list_pop_back(domains, 
                                 domain, sizeof(domain));
-                printf("Got %s from list, head is %p\n", domain, domains);
                 id = cJSON_CreateObject();
                 cJSON_AddItemToObject(id, "type", cJSON_CreateString("dns"));
                 cJSON_AddItemToObject(id, "value", cJSON_CreateString(domain));
@@ -406,113 +458,154 @@ int8_t acme_new_order(EVP_PKEY** key, struct string_node* domain_list,
         }
         cJSON_AddItemToObject(identifiers, "identifiers", ids);
         
-        strcpy(payload, cJSON_Print(identifiers));
+        /* Assemble the JWT */
+        char* header = acme_write_header(&hdr);
+        char* payload = cJSON_Print(identifiers);
+        char* token = crypt_mktoken(client->key, header, payload);
 
         cJSON_Delete(identifiers);
 
-        char msg[2048];
-        char header64[512];
-        base64url((uint8_t*)header,header64,strlen(header),sizeof(msg));
+        /* Make the HTTP POST request */
+        curl_post( server->resources[ACME_RES_NEW_ORDER], 
+                   token, 
+                   acme_write_cb,
+                   acme_header_cb, 
+                   NULL, 
+                   server->ca_cert);
+       
+        free(token);
+
+        /* Wait for response */
+        //TODO timeout
+        while(acme_srv_response == NULL);
+
+        /* Create an order object from the server response */
+        client->order = malloc(sizeof(struct acme_order));
+        client->order->status = ACME_STATUS_UNKNOWN;
+        client->order->identifiers = NULL;
+        client->order->authz = NULL;
+        client->order->finalize_url = NULL;
+        client->order->cert_url = NULL;
         
-        char payload64[512];
-        base64url((uint8_t*)payload,payload64,strlen(payload),sizeof(msg));
-
-        sprintf(msg,"%s.%s",header64,payload64);
-        crypt_sign(msg,*key,signature,sizeof(signature));
-
-        sprintf(post,"{\"protected\":\"%s\",\"payload\":\"%s\","
-                        "\"signature\":\"%s\"}",
-                        header64,payload64,signature);
-
-        curl_post(acme_resources[ACME_NEW_ORDER], post, acme_write_callback,
-                        acme_new_acc_header_callback, NULL);
-                
-        assert(acme_srv_response != NULL);
         cJSON* srv_resp = cJSON_Parse(acme_srv_response);
         if (srv_resp == NULL){
                 const char* err = cJSON_GetErrorPtr();
                 if (err != NULL){
-                        printf("JSON parse error in server response: err\n");
+                        printf("JSON parse error in server response: %s\n", err);
                 }
                 return -1;
         }
-        //acme_print_srv_response(acme_srv_response);
+        cJSON* status = cJSON_GetObjectItemCaseSensitive(srv_resp, "status");
+        cJSON* srv_ids = cJSON_GetObjectItemCaseSensitive(srv_resp, "identifiers");
         cJSON* finalize = cJSON_GetObjectItemCaseSensitive(srv_resp, "finalize"); 
         cJSON* authz = cJSON_GetObjectItemCaseSensitive(srv_resp, "authorizations");
-        if (cJSON_IsString(finalize)){
-                strcpy(acme_finalize_url, finalize->valuestring);
+        if (cJSON_IsString(status)){
+                client->order->status = acme_get_status(status->valuestring);
         }
-        else {
-                printf("Server response parse error\n");
-                acme_print_srv_response(acme_print_srv_response);
-                cJSON_Delete(srv_resp);
-                free(acme_srv_response);
-                acme_srv_response = NULL;
-                return -1;
-        }
+         
         cJSON* auth;
         cJSON_ArrayForEach(auth, authz) {
                 if (cJSON_IsString(auth)){
-                        char auth_url[128];
-                        strcpy(auth_url, auth->valuestring);
-                        *authz_list = string_list_append(*authz_list, auth_url);            
-                        printf("Appended %s to head %p\n", auth_url, *authz_list);
+                        struct acme_auth* new_auth = malloc(sizeof(struct acme_auth));
+                        new_auth->status = ACME_STATUS_UNKNOWN;
+                        new_auth->id = NULL;
+                        new_auth->challenges = NULL;
+                        new_auth->wildcard = 0;
+                        client->order->authz = string_list_append
+                                (client->order->authz, auth->valuestring);
                 }
                 else {
                         printf("Auth parse error\n");
                 }
         }
+        cJSON* srv_id;
+        cJSON_ArrayForEach(srv_id, srv_ids) {
+                cJSON* type = cJSON_GetObjectItemCaseSensitive(srv_id, "type");
+                cJSON* value = cJSON_GetObjectItemCaseSensitive(srv_id, "value");
+                if (cJSON_IsString(type) && cJSON_IsString(value)){
+                        struct acme_identifier* new_id 
+                                = malloc(sizeof(struct acme_identifier));
+                        new_id->value = malloc(strlen(value->valuestring)+1);
+                        strcpy(new_id->value, value->valuestring);
+                        new_id->type = ACME_ID_DNS; 
+                        client->order->identifiers 
+                                = id_list_append(client->order->identifiers, new_id);
+                }
+                else {
+                        printf("Identifier parse error\n");
+                }
+        }
+
+        if (cJSON_IsString(finalize)){
+                client->order->finalize_url = malloc(strlen(finalize->valuestring)+1);
+                strcpy(client->order->finalize_url, finalize->valuestring);
+        }
+        else {
+                printf("Server response parse error\n");
+                acme_print_srv_response();
+                cJSON_Delete(srv_resp);
+                free(acme_srv_response);
+                acme_srv_response = NULL;
+                return -1;
+        }
+        if (verbose && (client->order->status == ACME_STATUS_PENDING)){
+                printf("Order %s updated successfully.\n", acme_location);
+        }
+        client->order->order_url = malloc(strlen(acme_location)+1);
+        strcpy(client->order->order_url, acme_location);
         cJSON_Delete(srv_resp);
+        free(acme_srv_response);
+        acme_srv_response = NULL;
         return 0;
 }
 
-int8_t acme_get_chal(EVP_PKEY** key, struct string_node* authz_list,
-                enum acme_validation chal_type){
-        char signature[512] = {0};
-        char post[2048] = {0};
+int8_t acme_get_auth( struct acme_account* client, 
+                      struct acme_server* server ){
 
-        char header[1024] = {0};
-   
-        assert(authz_list != NULL);
-        struct string_node* authz = string_list_copy(authz_list);
-        string_list_delete(acme_chal_url_list);
-        acme_chal_url_list = NULL;
-        string_list_delete(acme_chal_token_list);
-        acme_chal_token_list = NULL;
-        while (authz != NULL){
-                char auth[512];
-                authz = string_list_pop_back(authz, 
-                                auth, sizeof(auth));
-                printf("Got %s from list, head is %p\n", auth, authz);
-               
+        /* Request authorization object from the server,
+         * this function should be called as long as there are
+         * elements in client->order->authz
+         */
+
+        /* Indicates whether at least one authorization from 
+         * the list still needs to be checked, i.e. has status 
+         * different from "valid". */
+        uint8_t need_chal = 0;
+
+        /* copy list to not mess with the original */
+        struct string_node* authz = string_list_copy(client->order->authz);
+        
+        /* Delete the old authorization objects */
+        authz_list_delete(client->authz_list);
+        client->authz_list = NULL;
+
+        while (authz != NULL) {
+                /* Header */
                 struct acme_header hdr;
                 hdr.alg = "ES256";
                 hdr.kid = acme_kid;
-                hdr.nonce = acme_nonce;
-                hdr.url = auth;
-                acme_write_header(header,sizeof(header),&hdr);
+                hdr.nonce = acme_nonce; 
 
-                char payload[1024];
-                strcpy(payload, "");
-
-                char msg[2048];
-                char header64[512];
-                base64url((uint8_t*)header,header64,strlen(header),sizeof(msg));
+                char url[512]; //TODO malloc
+                hdr.url = url;
+                authz = string_list_pop_back(authz, url, sizeof(url));
                 
-                char payload64[512];
-                base64url((uint8_t*)payload,payload64,strlen(payload),sizeof(msg));
+                /* Assemble JWT */
+                char* header = acme_write_header(&hdr);
+                char payload[] = "";
+                char* token = crypt_mktoken(client->key, header, payload);
 
-                sprintf(msg,"%s.%s",header64,payload64);
-                crypt_sign(msg,*key,signature,sizeof(signature));
+                /* Make the HTTP POST request */
+                curl_post(url, token, acme_write_cb, acme_header_cb, 
+                                NULL, server->ca_cert);
+                
+                free(token);
 
-                sprintf(post,"{\"protected\":\"%s\",\"payload\":\"%s\","
-                                "\"signature\":\"%s\"}",
-                                header64,payload64,signature);
+                /* Wait for response */
+                //TODO timeout
+                while(acme_srv_response == NULL);
 
-                            curl_post(auth, post, acme_write_callback, 
-                                acme_new_acc_header_callback, NULL);
-                        
-                assert(acme_srv_response != NULL);
+                /* Parse the response */ 
                 cJSON* srv_resp = cJSON_Parse(acme_srv_response);
                 if (srv_resp == NULL){
                         const char* err = cJSON_GetErrorPtr();
@@ -520,67 +613,150 @@ int8_t acme_get_chal(EVP_PKEY** key, struct string_node* authz_list,
                                 printf("JSON parse error"
                                                 "in server response: err\n");
                         }
+                        free(acme_srv_response);
+                        acme_srv_response = NULL;
                         return -1;
                 }
-                //acme_print_srv_response(acme_srv_response);
+                
+                /* The authorization object will contain the domain it is for 
+                 * (we don't know if we requested multiple domains) and the 
+                 * challenges 
+                 */
+                
+                struct acme_auth* new_auth = malloc(sizeof(struct acme_auth));
+                struct acme_identifier* new_id = malloc(sizeof(struct acme_identifier));
+                new_auth->challenges = NULL;
+                new_id->type = ACME_ID_DNS;
+                new_id->value = NULL;
+                new_auth->id = new_id;
+
                 cJSON* challenges = cJSON_GetObjectItemCaseSensitive
                         (srv_resp, "challenges"); 
                 cJSON* wildcard = cJSON_GetObjectItemCaseSensitive
                         (srv_resp, "wildcard"); 
-                int is_wildcard=0;
-                if (cJSON_IsBool(wildcard)){
-                        if (wildcard->valueint){
-                                printf("This is a wildcard domain!\n");
-                                is_wildcard=1;
-                        }
-                }
-                cJSON* chal;
-                cJSON_ArrayForEach(chal, challenges) {
-                        cJSON* type = 
-                                cJSON_GetObjectItemCaseSensitive(chal, "type"); 
-                        cJSON* url = 
-                                cJSON_GetObjectItemCaseSensitive(chal, "url");
-                        cJSON* token = 
-                                cJSON_GetObjectItemCaseSensitive(chal, "token");
-                       
-                        if (!is_wildcard){
-                                if (!(strcmp(type->valuestring, "http-01"))){
-                                        acme_chal_url_list = string_list_append
-                                                (acme_chal_url_list, url->valuestring);
-                                        string_list_print(acme_chal_url_list);
-                                        acme_chal_token_list = string_list_append
-                                                (acme_chal_token_list, token->valuestring);
-                                        string_list_print(acme_chal_token_list);
-                                        break;
-                                }
-                        }
-                        else {
-                                 if (!(strcmp(type->valuestring, "dns-01"))){
-                                        acme_chal_url_list = string_list_append
-                                                (acme_chal_url_list, url->valuestring);
-                                        string_list_print(acme_chal_url_list);
-                                        acme_chal_token_list = string_list_append
-                                                (acme_chal_token_list, token->valuestring);
-                                        strcpy(acme_dns_token, token->valuestring);
-                                        strcpy(acme_dns_digest,acme_get_token_dns());
-                                        printf("Token is ready at %p\n", acme_dns_digest);
-                                        string_list_print(acme_chal_token_list);
-                                        break;
-                                }
+                cJSON* identifier = cJSON_GetObjectItemCaseSensitive
+                        (srv_resp, "identifier");
+                cJSON* id_value = cJSON_GetObjectItemCaseSensitive(identifier, "value");
+                cJSON* status = cJSON_GetObjectItemCaseSensitive(srv_resp,
+                                "status");
 
-                        }
+                if (!cJSON_IsString(status)){
+                        free(acme_srv_response);
+                        acme_srv_response = NULL;
+                        cJSON_Delete(srv_resp);
+                        return -1;
                 }
-                cJSON_Delete(srv_resp);
+                else if (acme_get_status(status->valuestring) == ACME_STATUS_VALID) {
+                        if (verbose) {
+                                printf("Authorization for \"%s\" is valid, no more challenges"
+                                " need to be fulfilled.\n", id_value->valuestring);
+                        }
+                        free(new_auth);
+                }
+                else if (acme_get_status(status->valuestring) == ACME_STATUS_PENDING) {
+                        need_chal = 1;
+                        new_id->type = ACME_ID_DNS;
+                        if (cJSON_IsString(id_value)){
+                                new_id->value = malloc(strlen(id_value->valuestring)+1);
+                                strcpy(new_id->value, id_value->valuestring);
+                        } 
+
+                        /* For a single authorization (for a single identifier aka domain),
+                         * there are probably multiple challenges we can choose from. If 
+                         * we fulfill one, we should be authorized. 
+                         */
+                        cJSON* chal;
+                        cJSON_ArrayForEach(chal, challenges) {        
+                                cJSON* type = 
+                                        cJSON_GetObjectItemCaseSensitive(chal, "type"); 
+                                cJSON* url = 
+                                        cJSON_GetObjectItemCaseSensitive(chal, "url");
+                                cJSON* token = 
+                                        cJSON_GetObjectItemCaseSensitive(chal, "token");
+                                cJSON* status =
+                                        cJSON_GetObjectItemCaseSensitive(chal, "status");
+                                
+                                struct acme_chal* new_chal 
+                                        = malloc(sizeof(struct acme_chal));
+
+                                new_chal->type = ACME_CHAL_DNS01;
+                                new_chal->status = ACME_STATUS_UNKNOWN;
+                                if (cJSON_IsString(status)){
+                                        new_chal->status = acme_get_status(status->valuestring);
+                                }
+                                else {
+                                        fprintf(stderr, "Challenge has invalid status.\n");
+                                        free(new_chal);
+                                        chal_list_delete(new_auth->challenges);
+                                        free(new_auth);
+                                        free(new_id);
+                                        return -1;
+                                }
+                                
+                                new_chal->token = malloc(strlen(token->valuestring)+1);
+                                strcpy(new_chal->token, token->valuestring);
+
+                                if (!(strcmp(type->valuestring, "http-01"))){
+                                        new_chal->type = ACME_CHAL_HTTP01;
+                                }
+                                if (!(strcmp(type->valuestring, "dns-01"))){
+                                        new_chal->type = ACME_CHAL_DNS01;
+                                }
+                                new_chal->url = malloc(strlen(url->valuestring)+1);
+                                strcpy(new_chal->url, url->valuestring);
+                                new_auth->challenges = chal_list_append
+                                (new_auth->challenges, new_chal);
+                                }
+                        //cJSON_Delete(srv_resp);
+                       
+                        /* check for wildcard domain */
+                        if (cJSON_IsBool(wildcard)){
+                                if (wildcard->valueint){
+                                        printf("Wildcard domain detected: using dns-01\n");
+                                }
+                        }
+                        if (new_auth->status == ACME_STATUS_INVALID){
+                                                                                return -1;
+                        } 
+                        if (verbose) {
+                                printf("Parsed authorization object for \"%s\".\n", 
+                                        new_auth->id->value);
+                        }
+                        assert(new_auth->challenges != NULL);
+                        client->authz_list = authz_list_append
+                                (client->authz_list, new_auth);
+                        free(acme_srv_response);
+                        acme_srv_response = NULL;
+                }
+                else if (acme_get_status(status->valuestring) == ACME_STATUS_INVALID) {
+                        printf("Authorization is invalid: "
+                                "The server could not verify the "
+                                "challenges. Check domain name and "
+                                "firewall rules and try again.\n");
+                        free(new_auth);
+                        free(new_id);
+                        free(acme_srv_response);
+                        acme_srv_response = NULL;
+                        return -1;
+                }
+                if (acme_srv_response){
+                        free(acme_srv_response);
+                        acme_srv_response = NULL;
+                }
         }
-        return 0;
+                if (need_chal) {
+                return 0;
+        }
+        return 1;
 }
+
 char* acme_get_token(char* url) {
         char* token = malloc(256);
-        printf("Replying to url %s with token ", url);
+        //printf("Replying to url %s with token ", url);
         strcpy(token, url+strlen("/.well-known/acme-challenge/")); 
         strcpy(token+strlen(token),".");
         strcpy(token+strlen(token),acme_thumbprint);
-        printf("%s\n", token);
+        //printf("%s\n", token);
 
         return token; 
 }
@@ -591,54 +767,75 @@ char* acme_get_token_dns() {
         printf("Using token %s\n", token);
         strcpy(token+strlen(token),".");
         strcpy(token+strlen(token),acme_thumbprint);
-        SHA256(token, strlen(token), digest);
-        base64url(digest, token, 32, 512);
+        SHA256((const unsigned char*)token, strlen(token), (unsigned char*)digest);
+        base64url((uint8_t*)digest, token, 32, 512);
         printf("DNS token: *%s* at %p\n", token, token);
         return token; 
 }
-int8_t acme_resp_chal(EVP_PKEY** key){
-        char signature[512] = {0};
-        char post[2048] = {0};
+int8_t acme_authorize(struct acme_account* client, struct acme_server* server, 
+                enum acme_chal_type method){
+        /* Take the an authorization objects and tell the server
+         * that we are ready for challenge validation */
 
-        char header[1024] = {0};
-        assert(acme_chal_url_list != NULL);
-        struct string_node* chal_list = string_list_copy(acme_chal_url_list);
-        while (chal_list != NULL) {
+        struct acme_auth* auth = malloc(sizeof(struct acme_auth));
+        auth->challenges = NULL;
+        while (client->authz_list != NULL) {
+                client->authz_list = authz_list_pop_back(client->authz_list, auth);
+ 
+                struct acme_chal* chal = malloc(sizeof(struct acme_chal));
+                chal->type = ACME_CHAL_HTTP01;
+                chal->token = NULL;
+                chal->status = ACME_STATUS_UNKNOWN;
+                chal->url = NULL;
+               
+                /* Auth object must contain at least 
+                 * one challenge to continue */
+                if (auth->challenges == NULL){
+                        free(auth);
+                        return -1;
+                }
 
-                char chal_url[256] = {0};
-                chal_list = string_list_pop_back(chal_list, 
-                                chal_url, sizeof(chal_url));
+                while (auth->challenges != NULL) {
+                        auth->challenges = chal_list_pop_back
+                                (auth->challenges, chal);
+                        if (chal->type == method){
+                                break;
+                        }
+                }
+                if (chal->type != method){
+                        fprintf(stderr, "Can not authorize: server did " 
+                                        "not offer a challenge of type of "
+                                        "requested type.");
+                        return -1;
+                }
+               
+                chal->status = ACME_STATUS_UNKNOWN;
 
-                printf("Got %s from list, head is %p\n", chal_url, chal_list);
+                /* Header */
                 struct acme_header hdr;
                 hdr.alg = "ES256";
                 hdr.kid = acme_kid;
                 hdr.nonce = acme_nonce;
-                hdr.url = chal_url;
-                acme_write_header(header,sizeof(header),&hdr);
+                hdr.url = chal->url;
 
-                char payload[1024];
-                strcpy(payload, "{}");
+                /* Assemble the JWT */
+                char* header = acme_write_header(&hdr);
+                char payload[] = "{}";
+                char* token = crypt_mktoken(client->key, header, payload);
 
-                char msg[2048];
-                char header64[512];
-                base64url((uint8_t*)header,header64,strlen(header),sizeof(msg));
-                
-                char payload64[512];
-                base64url((uint8_t*)payload,payload64,strlen(payload),sizeof(msg));
+                /* Make HTTP POST request */
+                /* this indicates to the server that we are ready
+                 * that the server tries to attempt the challenge 
+                 * checking */
+                curl_post(chal->url, token, acme_write_cb, 
+                                acme_header_cb, NULL, server->ca_cert);
+                       
+                free(token);
 
-                sprintf(msg,"%s.%s",header64,payload64);
-                crypt_sign(msg,*key,signature,sizeof(signature));
+                /* Wait for response */
+                //TODO timeout
+                while(acme_srv_response == NULL);
 
-                sprintf(post,"{\"protected\":\"%s\",\"payload\":\"%s\","
-                                "\"signature\":\"%s\"}",
-                                header64,payload64,signature);
-
-                printf("acme_chal_url: %s\n",  chal_url);
-                curl_post(chal_url, post, acme_write_callback, 
-                                acme_new_acc_header_callback, NULL);
-                        
-                assert(acme_srv_response != NULL);
                 cJSON* srv_resp = cJSON_Parse(acme_srv_response);
                 if (srv_resp == NULL){
                         const char* err = cJSON_GetErrorPtr();
@@ -647,45 +844,26 @@ int8_t acme_resp_chal(EVP_PKEY** key){
                         }
                         return -1;
                 }
-                //acme_print_srv_response(acme_srv_response);
-              /*  cJSON* challenges = 
-                        cJSON_GetObjectItemCaseSensitive(srv_resp, "challenges"); 
-                cJSON* chal;
-                cJSON_ArrayForEach(chal, challenges) {
-                        cJSON* type = cJSON_GetObjectItemCaseSensitive(chal, "type");
-                        if (cJSON_IsString(type)){
-                                printf("Type: %s\n", type->valuestring);
-                        } 
-                        cJSON* url = cJSON_GetObjectItemCaseSensitive(chal, "url");
-                        if (cJSON_IsString(type)){
-                                printf("URL: %s\n", url->valuestring);
-                        } 
-                        cJSON* token = cJSON_GetObjectItemCaseSensitive(chal, "token");
-                        if (cJSON_IsString(type)){
-                                printf("Token: %s\n", token->valuestring);
-                        }
-                        if (!(strcmp(type->valuestring, "http-01"))){
-                                strcpy(acme_chal_url, url->valuestring);
-                                strcpy(acme_chal_token, token->valuestring); 
-                                break;
-                        }
+                cJSON* status = cJSON_GetObjectItemCaseSensitive(srv_resp, "status");
+                if (cJSON_IsString(status)){
+                        chal->status = acme_get_status(status->valuestring);
                 }
-                cJSON_Delete(srv_resp);*/
+                free(acme_srv_response);
+                acme_srv_response = NULL;
+                cJSON_Delete(srv_resp);
         }
-        //string_list_delete(chal_list);
         return 0;
 }
-int8_t acme_finalize(EVP_PKEY** key, struct string_node* domain_list){
-        char signature[4096] = {0};
-        char post[16384] = {0};
+int8_t acme_finalize(struct acme_account* client, struct acme_server* server,
+                struct string_node* domain_list){
 
-        char header[1024] = {0};
         struct acme_header hdr;
         hdr.alg = "ES256";
         hdr.kid = acme_kid;
         hdr.nonce = acme_nonce;
-        hdr.url = acme_finalize_url;
-        acme_write_header(header,sizeof(header),&hdr);
+        hdr.url = client->order->finalize_url;
+
+        char* header = acme_write_header(&hdr);
 
         EVP_PKEY* csr_key = NULL;
         X509_REQ* csr;
@@ -705,62 +883,87 @@ int8_t acme_finalize(EVP_PKEY** key, struct string_node* domain_list){
         strcpy(payload+strlen(payload),csr_pem);
         strcpy(payload+strlen(payload), "\"}");
 
-        char msg[8192];
-        char header64[512];
-        base64url((uint8_t*)header,header64,strlen(header),sizeof(msg));
+        char* token = crypt_mktoken(client->key, header, payload);
+         
+        curl_post(client->order->finalize_url, token, acme_write_cb, 
+                        acme_header_cb, NULL, server->ca_cert);
         
-        char payload64[4096];
-        base64url((uint8_t*)payload,payload64,strlen(payload),sizeof(msg));
+        free(token);
 
-        sprintf(msg,"%s.%s",header64,payload64);
-        crypt_sign(msg,*key,signature,sizeof(signature));
-
-        sprintf(post,"{\"protected\":\"%s\",\"payload\":\"%s\","
-                        "\"signature\":\"%s\"}",
-                        header64,payload64,signature);
+        /* Wait for response */
+        //TODO timeout
+        while (acme_srv_response == NULL);
  
-        curl_post(acme_finalize_url, post, acme_write_callback, 
-                        acme_new_acc_header_callback, NULL);
-        return 0;
-}
-int8_t acme_get_order_status(EVP_PKEY** key){
-        char signature[4096] = {0};
-        char post[16384] = {0};
+        cJSON* srv_resp = cJSON_Parse(acme_srv_response);
+        cJSON* status = cJSON_GetObjectItemCaseSensitive(srv_resp, "status");
+        if (!cJSON_IsString(status)){
+                return -1;
+        }
 
-        char header[1024] = {0};
+        int ret = 0;
+        switch(acme_get_status(status->valuestring)){
+                case ACME_STATUS_PROCESSING:
+                        if (verbose)
+                                printf("Server is processing certificate request.\n");
+                        ret = 0;
+                        break;
+                case ACME_STATUS_READY:
+                        if (verbose)
+                                printf("Server has issued certificate.\n");
+                        ret = 1;
+                        break;
+                default:
+                        ret = -1;
+        }
+
+        free(acme_srv_response);
+        acme_srv_response = NULL;
+
+        return ret;
+}
+int8_t acme_get_order_status(struct acme_account* client, struct acme_server* server){
+
         struct acme_header hdr;
         hdr.alg = "ES256";
         hdr.kid = acme_kid;
         hdr.nonce = acme_nonce;
-        hdr.url = acme_location;
-        acme_write_header(header,sizeof(header),&hdr);
+        hdr.url = client->order->order_url;
 
-        char payload[4096];
-        strcpy(payload, "");
-        
-        char msg[8192];
-        char header64[512];
-        base64url((uint8_t*)header,header64,strlen(header),sizeof(msg));
-        
-        char payload64[4096];
-        base64url((uint8_t*)payload,payload64,strlen(payload),sizeof(msg));
+        char* header = acme_write_header(&hdr);
+        char payload[] = ""; 
+        char* token = crypt_mktoken(client->key, header, payload);
+         
+        curl_post(client->order->order_url, token, acme_write_cb,
+                        acme_header_cb, NULL, server->ca_cert);
+       
+        free(token);
 
-        sprintf(msg,"%s.%s",header64,payload64);
-        crypt_sign(msg,*key,signature,sizeof(signature));
+        cJSON* srv_resp = cJSON_Parse(acme_srv_response);
+        cJSON* status = cJSON_GetObjectItemCaseSensitive(srv_resp, "status");
+        cJSON* certificate = cJSON_GetObjectItemCaseSensitive(srv_resp, "certificate");
 
-        sprintf(post,"{\"protected\":\"%s\",\"payload\":\"%s\","
-                        "\"signature\":\"%s\"}",
-                        header64,payload64,signature);
- 
-        curl_post(acme_location, post, acme_write_callback,
-                        acme_new_acc_header_callback, NULL);
+        free(acme_srv_response);
+        acme_srv_response = NULL;
+
+        if (acme_get_status(status->valuestring) == ACME_STATUS_VALID){
+                if (cJSON_IsString(certificate)){
+                        if (client->order->cert_url != NULL){
+                                free(client->order->cert_url);
+                        }
+                        client->order->cert_url = 
+                                malloc(strlen(certificate->valuestring)+1);
+                        strcpy(client->order->cert_url, certificate->valuestring);
+                }
+                cJSON_Delete(srv_resp);
+                return 1; 
+        }
+        cJSON_Delete(srv_resp);
         return 0;
 }
-int8_t acme_check_chal(EVP_PKEY** key){
+int8_t acme_check_auth(struct acme_account* client, struct acme_server* server){
         char signature[512] = {0};
         char post[2048] = {0};
 
-        char header[1024] = {0};
         struct acme_header hdr;
         
         if (acme_chal_url_list == NULL){
@@ -772,14 +975,12 @@ int8_t acme_check_chal(EVP_PKEY** key){
                 char chal_url[256] = {0};
                 chal_list = string_list_pop_back(chal_list, 
                                 chal_url, sizeof(chal_url));
-
-                printf("Got %s from list, head is %p\n", chal_url, chal_list);
-   
+ 
                 hdr.alg = "ES256";
                 hdr.kid = acme_kid;
                 hdr.nonce = acme_nonce;
                 hdr.url = chal_url;
-                acme_write_header(header,sizeof(header),&hdr);
+                char* header = acme_write_header(&hdr);
 
                 char payload[1024];
                 strcpy(payload, "");
@@ -792,15 +993,15 @@ int8_t acme_check_chal(EVP_PKEY** key){
                 base64url((uint8_t*)payload,payload64,strlen(payload),sizeof(msg));
 
                 sprintf(msg,"%s.%s",header64,payload64);
-                crypt_sign(msg,*key,signature,sizeof(signature));
+                crypt_sign(msg,*(client->key),signature,sizeof(signature));
 
                 sprintf(post,"{\"protected\":\"%s\",\"payload\":\"%s\","
                                 "\"signature\":\"%s\"}",
                                 header64,payload64,signature);
 
 
-                curl_post(chal_url, post, acme_write_callback, 
-                                acme_new_acc_header_callback, NULL);
+                curl_post(chal_url, post, acme_write_cb, 
+                                acme_header_cb, NULL, server->ca_cert);
         
                 cJSON* resp = acme_parse_srv_resp();
                 cJSON* status = cJSON_GetObjectItemCaseSensitive(resp, "status"); 
@@ -822,17 +1023,16 @@ int8_t acme_check_chal(EVP_PKEY** key){
         return -1;
 }
 
-int8_t acme_list_orders(EVP_PKEY** key){
+int8_t acme_list_orders(struct acme_account* client, struct acme_server* server){
         char signature[512] = {0};
         char post[2048] = {0};
 
-        char header[1024] = {0};
         struct acme_header hdr;
         hdr.alg = "ES256";
         hdr.kid = acme_location;
         hdr.nonce = acme_nonce;
-        hdr.url = acme_resources[ACME_ORDER_LIST];
-        acme_write_header(header,sizeof(header),&hdr);
+        hdr.url = server->resources[ACME_RES_ORDER_LIST];
+        char* header = acme_write_header(&hdr);
         printf("Header is \n%s\n", header);
 
         char payload[1024];
@@ -847,19 +1047,19 @@ int8_t acme_list_orders(EVP_PKEY** key){
         base64url((uint8_t*)payload,payload64,strlen(payload),sizeof(msg));
 
         sprintf(msg,"%s.%s",header64,payload64);
-        crypt_sign(msg,*key,signature,sizeof(signature));
+        crypt_sign(msg,*(client->key),signature,sizeof(signature));
 
         sprintf(post,"{\"protected\":\"%s\",\"payload\":\"%s\","
                         "\"signature\":\"%s\"}",
                         header64,payload64,signature);
 
-        curl_post(acme_resources[ACME_ORDER_LIST], post, acme_write_callback, 
-                        acme_new_acc_header_callback, NULL);
+        curl_post(server->resources[ACME_RES_ORDER_LIST], post, acme_write_cb, 
+                        acme_header_cb, NULL, server->ca_cert);
         return 0;
 }
 
-int8_t acme_add_root_cert(char* file){
-        curl_get("https://pebble:15000/roots/0", NULL, acme_root_cert_callback); 
+int8_t acme_add_root_cert(char* ca_cert){
+        curl_get("https://pebble:15000/roots/0", NULL, acme_root_cert_callback, ca_cert); 
         //printf("Root cert:\n%s\n", acme_root_cert);
         char* p = strstr(acme_cert_chain, "-----END CERTIFICATE-----");
         p += strlen("-----END CERTIFICATE-----");
@@ -870,17 +1070,16 @@ int8_t acme_add_root_cert(char* file){
         return 0;
 }
 
-int8_t acme_get_cert(EVP_PKEY** key){
+int8_t acme_get_cert(struct acme_account* client, struct acme_server* server){
         char signature[512] = {0};
         char post[2048] = {0};
 
-        char header[1024] = {0};
         struct acme_header hdr;
         hdr.alg = "ES256";
         hdr.kid = acme_kid;
         hdr.nonce = acme_nonce;
-        hdr.url = acme_cert;
-        acme_write_header(header,sizeof(header),&hdr);
+        hdr.url = client->order->cert_url;
+        char* header = acme_write_header(&hdr);
 
         char payload[1024];
         strcpy(payload, "");
@@ -893,37 +1092,36 @@ int8_t acme_get_cert(EVP_PKEY** key){
         base64url((uint8_t*)payload,payload64,strlen(payload),sizeof(msg));
 
         sprintf(msg,"%s.%s",header64,payload64);
-        crypt_sign(msg,*key,signature,sizeof(signature));
+        crypt_sign(msg,*(client->key),signature,sizeof(signature));
 
         sprintf(post,"{\"protected\":\"%s\",\"payload\":\"%s\","
                         "\"signature\":\"%s\"}",
                         header64,payload64,signature);
 
         char* headers = "Accept: application/pem-certificate-chain";
-        curl_post(acme_cert, post,  acme_cert_callback, 
-                        acme_new_acc_header_callback, headers);
+        curl_post(client->order->cert_url, post,  acme_cert_callback, 
+                        acme_header_cb, headers, server->ca_cert);
         free(acme_srv_response);
         acme_srv_response=NULL;
         return 0;
 }
 
-int8_t acme_revoke_cert(EVP_PKEY** key, char* certfile){
+int8_t acme_revoke_cert(struct acme_account* client, struct acme_server* server, char* certfile){
         char signature[4096] = {0};
         char post[16384] = {0};
 
-        char header[1024] = {0};
         struct acme_header hdr;
         hdr.alg = "ES256";
         hdr.kid = acme_kid;
         hdr.nonce = acme_nonce;
-        hdr.url = acme_resources[ACME_REVOKE_CERT];
-        acme_write_header(header,sizeof(header),&hdr);
+        hdr.url = server->resources[ACME_RES_REVOKE_CERT];
+        char* header = acme_write_header(&hdr);
 
         char payload[4096] = {0};
         strcpy(payload, "{\"certificate\":\"");
         char pem_cert[2048];
         FILE* cfile;
-        cfile = fopen("cert.crt", "r");
+        cfile = fopen(certfile, "r");
         assert(cfile != NULL); 
         int len = fread(pem_cert, sizeof(pem_cert),
                         sizeof(char), cfile);
@@ -944,30 +1142,76 @@ int8_t acme_revoke_cert(EVP_PKEY** key, char* certfile){
         base64url((uint8_t*)payload,payload64,strlen(payload),sizeof(msg));
 
         sprintf(msg,"%s.%s",header64,payload64);
-        crypt_sign(msg,*key,signature,sizeof(signature));
+        crypt_sign(msg,*(client->key),signature,sizeof(signature));
 
         sprintf(post,"{\"protected\":\"%s\",\"payload\":\"%s\","
                         "\"signature\":\"%s\"}",
                         header64,payload64,signature);
 
-        curl_post(acme_resources[ACME_REVOKE_CERT], post,
-                        acme_write_callback, NULL, NULL);
+        curl_post(server->resources[ACME_RES_REVOKE_CERT], post,
+                        acme_write_cb, NULL, NULL, server->ca_cert);
         free(acme_srv_response);
         acme_srv_response=NULL;
         return 0;
 }
 
-int8_t acme_new_nonce(char* nonce_resource, char* nonce, uint8_t len){
-        curl_get(acme_resources[ACME_NEW_NONCE],
-                        acme_new_nonce_header_callback, NULL);
-        strcpy(nonce, acme_nonce);
-        nonce[strlen(acme_nonce) - 2] = '\0';
+int8_t acme_new_nonce(struct acme_server* server){
+        curl_get(server->resources[ACME_RES_NEW_NONCE],
+                        acme_header_cb, NULL, server->ca_cert);
         return 0;
 }
 
-int8_t acme_get_resources(){
-        curl_get(acme_resources[ACME_DIR],
-                        acme_new_nonce_header_callback, NULL);
+int8_t acme_get_resources(struct acme_server* server, uint8_t accept_tos){
+        if (curl_get(server->resources[ACME_RES_DIR], acme_header_cb, 
+                                acme_write_cb, server->ca_cert) != 0){
+                return -1;
+        }
+        while(acme_srv_response == NULL);
+        cJSON* res = cJSON_Parse(acme_srv_response);
+        if (res == NULL){
+                fprintf(stderr, "JSON parse error.\n");
+                return -1;
+        }
+        cJSON* nonce = cJSON_GetObjectItemCaseSensitive(res, "newNonce");
+        cJSON* acc = cJSON_GetObjectItemCaseSensitive(res, "newAccount");
+        cJSON* order = cJSON_GetObjectItemCaseSensitive(res, "newOrder");
+        cJSON* revoke = cJSON_GetObjectItemCaseSensitive(res, "revokeCert");
+        cJSON* meta = cJSON_GetObjectItemCaseSensitive(res, "meta");
+        cJSON* terms = cJSON_GetObjectItemCaseSensitive(meta, "termsOfService");
+
+        if (cJSON_IsString(terms)){
+                printf("Terms of service are located at %s\n", terms->valuestring);
+                if (!accept_tos){
+                        printf("Do you agree to the terms of service? [Y/n]");
+                        char answer;
+                        int len = scanf("%c", &answer);
+                        if (len == 1 && answer != 'y' && answer != 'Y' && answer != 0x0A){
+                                fprintf(stderr, "You must agree to the terms of service"
+                                                " in order to continue.\n");
+                                return -2; 
+                        }        
+                }
+                else {
+                        printf("Accepting terms of service.\n");
+                }
+        }
+
+        acme_server_add_resource(server, ACME_RES_NEW_NONCE, nonce->valuestring);
+        acme_server_add_resource(server, ACME_RES_NEW_ACC, acc->valuestring);
+        acme_server_add_resource(server, ACME_RES_NEW_ORDER, order->valuestring);
+        acme_server_add_resource(server, ACME_RES_REVOKE_CERT, revoke->valuestring);
+
+        if (verbose){
+                printf("Added server resources:\n");
+                printf("NEW_NONCE: %s\n", nonce->valuestring);
+                printf("NEW_ACC: %s\n", acc->valuestring);
+                printf("NEW_ORDER: %s\n", order->valuestring);
+                printf("NEW_REVOKE_CERT: %s\n", revoke->valuestring);
+        }
+
+        if (res != NULL) 
+                cJSON_Delete(res);
+
         if (acme_srv_response){
                 free(acme_srv_response);
                 acme_srv_response = NULL;
@@ -976,8 +1220,28 @@ int8_t acme_get_resources(){
 }
 
 
-void acme_write_header(char* out, uint16_t len, struct acme_header* header){
-        /* TODO length check */
+char* acme_write_header(struct acme_header* header){
+        char* out;
+
+        /* get length of header fields */
+        uint16_t len;
+        if (header->kid == NULL){
+                len = strlen(header->alg) + strlen(header->jwk)
+                        + strlen(header->nonce) + strlen(header->url);
+        } 
+        else {
+                len = strlen(header->alg) + strlen(header->kid)
+                        + strlen(header->nonce) + strlen(header->url);
+        }
+        /* add constant length of labels
+         * note that the longer variant (kid) */
+        len += strlen("{\"alg\":\"\","
+                        "\"kid\":\"\","
+                        "\"nonce\":\"\","
+                        "\"url\":\"\"}");
+        out = malloc(len+1); // +1 for null termination
+                             
+        /* kid and jwt field are mutually exclusive. */
         if (header->kid == NULL) {
                 sprintf(out, "{\"alg\":\"%s\","
                         "\"jwk\":%s,"
@@ -990,11 +1254,14 @@ void acme_write_header(char* out, uint16_t len, struct acme_header* header){
                         "\"kid\":\"%s\","
                         "\"nonce\":\"%s\","
                         "\"url\":\"%s\"}", 
-                        header->alg,header->kid,header->nonce,header->url);
-       
+                        header->alg,header->kid,header->nonce,header->url); 
         }
+        return out;
 }
-void acme_write_payload(char* out, uint16_t len){
-       sprintf(out, "{\"termsOfServiceAgreed\":true}");
+
+void acme_cleanup() {
+        if (acme_nonce != NULL){
+                free(acme_nonce);
+        }
 }
 

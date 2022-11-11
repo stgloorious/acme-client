@@ -37,6 +37,8 @@
 #include "crypt.h"
 #include "b64.h"
 
+extern uint8_t verbose;
+
 /* TODO to be removed, these are testing keys only! */
 char acme_private_key[] = ""
 "-----BEGIN PRIVATE KEY-----\n"
@@ -182,11 +184,8 @@ int8_t crypt_sign(const char* msg, EVP_PKEY* key,
         
         /* R and S values are 32 byte, so we need 64 byte for 
          * hex representation + NULL terminator */
-        char r[256] = {0};
-        char s[256] = {0};
-
-        strcpy(r,BN_bn2hex(ec_sig_r));
-        strcpy(s,BN_bn2hex(ec_sig_s));
+        char* r = BN_bn2hex(ec_sig_r);
+        char* s = BN_bn2hex(ec_sig_s);
 
         //printf("R: %s\nS: %s\n", r, s);
         
@@ -199,6 +198,9 @@ int8_t crypt_sign(const char* msg, EVP_PKEY* key,
         memcpy(cat_sig, r, 64);
         memcpy(cat_sig+64, s, 64);
         cat_sig[128]='\0';
+
+        free(r);
+        free(s);
 
         /* convert to binary */
         uint8_t cat_sig_b[512] = {0};
@@ -229,11 +231,11 @@ int8_t crypt_sign(const char* msg, EVP_PKEY* key,
 int8_t crypt_new_csr(EVP_PKEY** key, X509_REQ** csr, char* csr_pem, 
                 uint16_t len, struct string_node* domain_list){
         //TODO error handling
-        printf("Generating new RSA key with 2048 bits.\n");
+        if (verbose) printf("Generating new RSA key with 2048 bits.\n");
         *key = EVP_RSA_gen(2048);
         //crypt_print_key(*key);
 
-        printf("Generating CSR.\n");
+        if (verbose) printf("Generating CSR.\n");
         *csr = X509_REQ_new();
         if (*csr == NULL){
                 printf("Could not generate CSR.\n");
@@ -248,8 +250,7 @@ int8_t crypt_new_csr(EVP_PKEY** key, X509_REQ** csr, char* csr_pem,
                         (unsigned char*)"example.com", -1, -1, 0);
 
         STACK_OF(X509_EXTENSION)* exts = sk_X509_EXTENSION_new_null();
-       
-        string_list_print(domain_list);
+        
         char san[512] = {0};
         struct string_node* domains = string_list_copy(domain_list);
         while (domains != NULL){
@@ -263,7 +264,6 @@ int8_t crypt_new_csr(EVP_PKEY** key, X509_REQ** csr, char* csr_pem,
                         strcpy(alt_name,"DNS:");
                 }
                 strcpy(alt_name+strlen(alt_name), domain);
-                printf("Adding alt_name %s to CSR\n", alt_name);
                 strcpy(san+strlen(san), alt_name);        
         }
         X509_EXTENSION* ex = X509V3_EXT_conf_nid(NULL, NULL, 
@@ -322,3 +322,42 @@ int8_t crypt_strip_cert(char* cert_pem) {
         return 0; 
 }
 
+char* crypt_mktoken(EVP_PKEY** key, char* header, char* payload) {
+         /* Base64-encode payload and header separately */
+        uint16_t header_len = (strlen(header) + 1) * 1.5;
+        char* header64 = malloc(header_len);
+        base64url((uint8_t*)header, header64, strlen(header), header_len);
+        free(header);
+        
+        uint16_t payload_len = (strlen(payload) + 1) * 1.5;
+        char* payload64 = malloc(payload_len);
+        base64url((uint8_t*)payload, payload64, strlen(payload), payload_len);
+
+        /* The token that is signed consists of concatenated base64-encoded
+         * header and payload, separated by '.' */
+        char* token2sign = malloc(header_len + payload_len + 1);
+        sprintf(token2sign, "%s.%s", header64, payload64);
+       
+        /* Sign the token */
+        /* TODO check if signature size is always 64 bytes */
+        uint16_t token_len = header_len + payload_len + 1 + 64;
+        char* token = malloc(token_len);
+        crypt_sign(token2sign, *key, token, token_len);
+        free(token2sign);
+
+        /* The token that is actually sent in HTTP POST body is 
+         * a JSON that includes the base64-encoded values */
+        uint16_t body_len = header_len + payload_len + token_len;
+        body_len += strlen( "{\"protected\":\"\","
+                            "\"payload\":\"\","
+                            "\"signature\":\"\"}" );
+        char* body = malloc(body_len);
+        sprintf(body, "{\"protected\":\"%s\","
+                      "\"payload\":\"%s\","
+                      "\"signature\":\"%s\"}", header64, payload64, token);
+
+        free(header64);
+        free(payload64);
+        free(token);
+        return body;
+}
