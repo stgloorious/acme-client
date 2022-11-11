@@ -45,7 +45,7 @@ ACME (Automatic Certificate Management Environment) is a protocol specified by [
 
         systemctl start nginx
     
-#### Obtain a certificate from local [Pebble testing server](https://github.com/letsencrypt/pebble)
+#### Obtaining a certificate from local [Pebble testing server](https://github.com/letsencrypt/pebble)
 
     ./acme-client http01 --agree-tos --dir https://pebble:14000/dir --domain example.com --cert=../pebble.minica.pem --port 5080
 
