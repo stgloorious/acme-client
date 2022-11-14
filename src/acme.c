@@ -962,103 +962,6 @@ int8_t acme_get_order_status(struct acme_account* client, struct acme_server* se
         cJSON_Delete(srv_resp);
         return 0;
 }
-int8_t acme_check_auth(struct acme_account* client, struct acme_server* server){
-        char signature[512] = {0};
-        char post[2048] = {0};
-
-        struct acme_header hdr;
-        
-        if (acme_chal_url_list == NULL){
-                return -2;
-        }
-        struct string_node* chal_list = string_list_copy(acme_chal_url_list);
-        while (chal_list != NULL) {
-             
-                char chal_url[256] = {0};
-                chal_list = string_list_pop_back(chal_list, 
-                                chal_url, sizeof(chal_url));
- 
-                hdr.alg = "ES256";
-                hdr.kid = acme_kid;
-                hdr.nonce = acme_nonce;
-                hdr.url = chal_url;
-                char* header = acme_write_header(&hdr);
-
-                char payload[1024];
-                strcpy(payload, "");
-
-                char msg[2048];
-                char header64[512];
-                base64url((uint8_t*)header,header64,strlen(header),sizeof(msg));
-                
-                char payload64[512];
-                base64url((uint8_t*)payload,payload64,strlen(payload),sizeof(msg));
-
-                sprintf(msg,"%s.%s",header64,payload64);
-                crypt_sign(msg,*(client->key),signature,sizeof(signature));
-
-                sprintf(post,"{\"protected\":\"%s\",\"payload\":\"%s\","
-                                "\"signature\":\"%s\"}",
-                                header64,payload64,signature);
-
-
-                curl_post(chal_url, post, acme_write_cb, 
-                                acme_header_cb, NULL, server->ca_cert);
-        
-                cJSON* resp = acme_parse_srv_resp();
-                cJSON* status = cJSON_GetObjectItemCaseSensitive(resp, "status"); 
-                if (cJSON_IsString(status)){
-                        if (!strcmp(status->valuestring, "valid")){
-                                printf("Challenge %s is valid, removing it "
-                                                "from list.\n", chal_url);  
-                                acme_chal_url_list = string_list_pop_back
-                                        (acme_chal_url_list, NULL, 0);
-                                if (acme_chal_url_list == NULL){
-                                        return 0;
-                                }
-                        }
-                        else {
-                                return -2;
-                        }
-                }
-        }
-        return -1;
-}
-
-int8_t acme_list_orders(struct acme_account* client, struct acme_server* server){
-        char signature[512] = {0};
-        char post[2048] = {0};
-
-        struct acme_header hdr;
-        hdr.alg = "ES256";
-        hdr.kid = acme_location;
-        hdr.nonce = acme_nonce;
-        hdr.url = server->resources[ACME_RES_ORDER_LIST];
-        char* header = acme_write_header(&hdr);
-        printf("Header is \n%s\n", header);
-
-        char payload[1024];
-        strcpy(payload, "{}");
-        printf("Payload is \n%s\n", payload);
-
-        char msg[2048];
-        char header64[512];
-        base64url((uint8_t*)header,header64,strlen(header),sizeof(msg));
-        
-        char payload64[512];
-        base64url((uint8_t*)payload,payload64,strlen(payload),sizeof(msg));
-
-        sprintf(msg,"%s.%s",header64,payload64);
-        crypt_sign(msg,*(client->key),signature,sizeof(signature));
-
-        sprintf(post,"{\"protected\":\"%s\",\"payload\":\"%s\","
-                        "\"signature\":\"%s\"}",
-                        header64,payload64,signature);
-
-        curl_post(server->resources[ACME_RES_ORDER_LIST], post, acme_write_cb, 
-                        acme_header_cb, NULL, server->ca_cert);
-        return 0;
-}
 
 int8_t acme_add_root_cert(char* ca_cert){
         curl_get("https://pebble:15000/roots/0", NULL, acme_root_cert_callback, ca_cert); 
@@ -1073,38 +976,27 @@ int8_t acme_add_root_cert(char* ca_cert){
 }
 
 int8_t acme_get_cert(struct acme_account* client, struct acme_server* server){
-        char signature[512] = {0};
-        char post[2048] = {0};
-
+        /* Header */
         struct acme_header hdr;
         hdr.alg = "ES256";
         hdr.kid = acme_kid;
         hdr.nonce = acme_nonce;
         hdr.url = client->order->cert_url;
-        char* header = acme_write_header(&hdr);
-
-        char payload[1024];
-        strcpy(payload, "");
-
-        char msg[2048];
-        char header64[512];
-        base64url((uint8_t*)header,header64,strlen(header),sizeof(msg));
         
-        char payload64[512];
-        base64url((uint8_t*)payload,payload64,strlen(payload),sizeof(msg));
+        /* Assemble JWT */
+        char* header = acme_write_header(&hdr);
+        char payload[] = "";
+        char* token = crypt_mktoken(client->key, header, payload);
 
-        sprintf(msg,"%s.%s",header64,payload64);
-        crypt_sign(msg,*(client->key),signature,sizeof(signature));
-
-        sprintf(post,"{\"protected\":\"%s\",\"payload\":\"%s\","
-                        "\"signature\":\"%s\"}",
-                        header64,payload64,signature);
-
+        /* Make HTTP POST request */
         char* headers = "Accept: application/pem-certificate-chain";
-        curl_post(client->order->cert_url, post,  acme_cert_callback, 
+        curl_post(client->order->cert_url, token,  acme_cert_callback, 
                         acme_header_cb, headers, server->ca_cert);
+
+        /* TODO parse answer */
         free(acme_srv_response);
         acme_srv_response=NULL;
+
         return 0;
 }
 
@@ -1164,11 +1056,16 @@ int8_t acme_new_nonce(struct acme_server* server){
 }
 
 int8_t acme_get_resources(struct acme_server* server, uint8_t accept_tos){
+        /* Resources can be fetched with GET, no POST-as-GET needed */
         if (curl_get(server->resources[ACME_RES_DIR], acme_header_cb, 
                                 acme_write_cb, server->ca_cert) != 0){
                 return -1;
         }
+
+        /* Wait for response */
+        //TODO timeout
         while(acme_srv_response == NULL);
+        
         cJSON* res = cJSON_Parse(acme_srv_response);
         if (res == NULL){
                 fprintf(stderr, "JSON parse error.\n");
@@ -1197,7 +1094,8 @@ int8_t acme_get_resources(struct acme_server* server, uint8_t accept_tos){
                         printf("Accepting terms of service.\n");
                 }
         }
-
+        
+        // TODO NULL checks
         acme_server_add_resource(server, ACME_RES_NEW_NONCE, nonce->valuestring);
         acme_server_add_resource(server, ACME_RES_NEW_ACC, acc->valuestring);
         acme_server_add_resource(server, ACME_RES_NEW_ORDER, order->valuestring);
