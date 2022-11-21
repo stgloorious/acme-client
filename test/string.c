@@ -69,6 +69,9 @@ void test_copy(){
 
 int main (int argc, char** argv){
         int choice = __atoi(argv[1]);
+        if (argc != 2){
+                return -1;
+        }
         switch(choice){
                 case 0:
                         test_empty_print();
