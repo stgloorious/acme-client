@@ -42,7 +42,7 @@ jobs:
 
     - name: Build
       # Build your program with the given configuration
-      run: cmake -DBUILD_TESTS --build
+      run: cmake -DBUILD_TESTS && make
 
     - name: Test
       working-directory: ${{github.workspace}}/build
