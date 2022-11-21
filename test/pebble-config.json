@@ -1,0 +1,16 @@
+{
+  "pebble": {
+    "listenAddress": "pebble:14000",
+    "managementListenAddress": "pebble:15000",
+    "certificate": "pebble.crt",
+    "privateKey": "pebble.key",
+    "httpPort": 80,
+    "tlsPort": 443,
+    "ocspResponderURL": "",
+    "externalAccountBindingRequired": false,
+    "retryAfter": {
+        "authz": 3,
+        "order": 5
+    }
+  }
+}
