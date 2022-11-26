@@ -41,10 +41,8 @@ jobs:
       run: cmake -B ${{github.workspace}}/build
 
     - name: Build
-      # Build your program with the given configuration
       run: cmake -DBUILD_TESTS=1 && make
 
     - name: Test
-      working-directory: ${{github.workspace}}/build
       run: make test
       
