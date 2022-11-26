@@ -39,5 +39,5 @@ jobs:
       run: cmake -DBUILD_TESTS=1 -B build && cd build && make
 
     - name: Test
-      run: ctest --rerun-failed --output-on-failure
+      run: cd build && ctest --rerun-failed --output-on-failure
       
