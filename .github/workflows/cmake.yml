@@ -34,7 +34,10 @@ jobs:
 
     - name: Installing Pebble
       run: sudo apt -y install pebble
- 
+
+    - name: Setting up static DNS entries
+      run: echo "127.0.0.1 pebble\n127.0.0.1 example.com" | sudo tee /etc/hosts
+
     - name: Build
       run: cmake -DBUILD_TESTS=1 -B build && cd build && make
 
