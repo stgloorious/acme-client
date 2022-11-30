@@ -38,11 +38,7 @@ static struct argp_option options[] = {
         {"domain",   'd', "DOMAIN",       0,
                 "Domain for which to request the certificate. Can be used "
                         "multiple times.", 0},
-        //{"revoke",   'R', 0,              OPTION_ARG_OPTIONAL,
-        //        "Revoke certificate immediately after it has been obtained.", 0},
-        //{"chal-server", 's', 0,           OPTION_ARG_OPTIONAL,
-        //        "Start an HTTP server to validate challenge automatically.", 0},
-        {"cert", 1, "CERTFILE", OPTION_ARG_OPTIONAL,
+        {"cert", 'c', "CERTFILE", 0,
                 "CA certificate file used by the ACME server", 0},
         {"agree-tos", 'y', 0, OPTION_ARG_OPTIONAL, 
                 "Always agree to the terms of service", 0},
@@ -58,7 +54,8 @@ struct arguments {
         char* server_cert;
         struct string_node* domain_list;
         int ndomain;
-        int revoke, tos_agree, chal_server, verbose;
+        int tos_agree;
+        int verbose;
 };
 
 static error_t 
@@ -78,12 +75,6 @@ parse_opt (int key, char* arg, struct argp_state *state)
                         assert(arguments->domain_list);
                         arguments->ndomain++;
                         break;
-                case 'R':
-                        arguments->revoke = 1;
-                        break;
-                case 's':
-                        arguments->chal_server = 1;
-                        break;
                 case 'v':
                         arguments->verbose = 1;
                         break;
@@ -93,7 +84,7 @@ parse_opt (int key, char* arg, struct argp_state *state)
                 case 'p':
                         arguments->port = arg;
                         break;
-                case 1:
+                case 'c':
                         arguments->server_cert = arg;
                         break;
                 case ARGP_KEY_NO_ARGS:

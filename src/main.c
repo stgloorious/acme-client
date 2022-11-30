@@ -58,7 +58,6 @@ int main (int argc, char** argv) {
         arguments.record = "0.0.0.0";
         arguments.domain_list = NULL;
         arguments.ndomain = 0;
-        arguments.revoke = 0;
         arguments.port = "80";
         arguments.server_cert = NULL;
         arguments.verbose = 0;
@@ -80,7 +79,7 @@ int main (int argc, char** argv) {
                 string_list_delete(domains);         
                 printf("DIR_URL = %s\n", arguments.dir_url);
                 printf("record = %s\n", arguments.record);
-                printf("revoke = %i\n", arguments.revoke);
+                printf("port = %s\n", arguments.port);
                 printf("ca_cert = %s\n", arguments.server_cert);
                 printf("tos_agree = %i\n", arguments.tos_agree);
                 printf("verbose = %i\n\n", arguments.verbose);
