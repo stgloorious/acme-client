@@ -40,8 +40,8 @@ jobs:
                     ::1       pebble\n \
                     127.0.0.1 example.com\n \
                     ::1       example.com" | sudo tee /etc/hosts
-    - name: DNS server
-      run: sudo apt -y install dnsmasq dnsutils && sudo systemctl start dnsmasq
+    - name: Restart DNS server
+      run: sudo systemctl restart systemd-resolved
 
     - name: Test DNS server
       run: dig example.com
