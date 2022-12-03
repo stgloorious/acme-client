@@ -55,7 +55,7 @@ int main (int argc, char** argv) {
         struct arguments arguments;
 
         arguments.dir_url = "https://acme-v02.api.letsencrypt.org/directory";
-        arguments.record = "0.0.0.0";
+        arguments.record = "127.0.0.1";
         arguments.domain_list = NULL;
         arguments.ndomain = 0;
         arguments.port = "80";
