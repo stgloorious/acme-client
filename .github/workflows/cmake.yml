@@ -35,6 +35,9 @@ jobs:
     - name: Installing Pebble
       run: sudo apt -y install pebble
 
+    - name: Disable AppArmor
+      run: sudo systemctl disable apparmor
+
     - name: Setting up static DNS entries
       run:  sudo cp test/hosts /etc/hosts && cat /etc/hosts
     
