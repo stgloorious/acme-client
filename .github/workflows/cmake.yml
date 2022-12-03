@@ -39,7 +39,8 @@ jobs:
       run: echo -e "127.0.0.1 pebble\n \
                     ::1       pebble\n \
                     127.0.0.1 example.com\n \
-                    ::1       example.com" | sudo tee /etc/hosts && cat /etc/hosts
+                    ::1       example.com" | sudo tee /etc/hosts
+           cat /etc/hosts
     - name: Restart DNS server
       run: sudo systemctl restart systemd-resolved
 
