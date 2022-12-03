@@ -33,11 +33,9 @@ jobs:
       run: sudo apt -y install libcjson-dev
 
     - name: Installing Pebble
-      run: sudo apt -y install pebble
-
-    - name: Disable AppArmor
-      run: sudo systemctl disable apparmor
-
+      run: sudo apt -y install pebble wireshark
+            tshark &
+           
     - name: Setting up static DNS entries
       run:  sudo cp test/hosts /etc/hosts && cat /etc/hosts
     
