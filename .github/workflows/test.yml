@@ -42,4 +42,10 @@ jobs:
 
     - name: Test
       run: cd build && ctest --rerun-failed --output-on-failure
-      
+     
+    - name: Coverage
+      run: sudo apt -y install lcov
+      run: cd build && gcov src/CMakeFiles/acme-client.dir/*
+      run: cd build && lcov --capture --directory . --output-file out.info-file
+      run: cd build && genhtml out.info-file
+
