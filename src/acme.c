@@ -125,6 +125,9 @@ int8_t acme_server_add_cert(struct acme_server *server, char *ca_cert)
 
 static enum acme_status acme_get_status(char *str)
 {
+	if (str == NULL) {
+		return ACME_STATUS_UNKNOWN;
+	}
 	if (!(strcmp(str, "valid"))) {
 		return ACME_STATUS_VALID;
 	}
@@ -361,6 +364,7 @@ int8_t acme_new_acc(struct acme_account *client, struct acme_server *server)
 	hdr.nonce = acme_nonce;
 	hdr.url = server->resources[ACME_RES_NEW_ACC];
 	hdr.kid = NULL;
+	cJSON_Delete(jwk);
 
 	/* Assemble the JWT */
 	char *header = acme_write_header(&hdr);
@@ -913,6 +917,7 @@ int8_t acme_finalize(struct acme_account *client, struct acme_server *server,
 	keyfile = fopen("client.key", "w");
 	PEM_write_PKCS8PrivateKey(keyfile, csr_key, NULL, NULL, 0, 0, "");
 	fclose(keyfile);
+	EVP_PKEY_free(csr_key);
 
 	char payload[4096];
 	strcpy(payload, "{\"csr\":\"");
