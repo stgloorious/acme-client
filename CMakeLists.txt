@@ -7,7 +7,10 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/build)
 
 add_subdirectory(src)
 
-if (BUILD_TESTS)
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+        message("***************************")
+        message("*** Debug configuration ***")
+        message("***************************")
         set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/build/test)
         set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/build/test)
         set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/build/test)

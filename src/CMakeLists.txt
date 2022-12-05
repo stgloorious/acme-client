@@ -10,8 +10,8 @@ target_link_libraries(acme-client OpenSSL::SSL)
 target_link_libraries(acme-client OpenSSL::Crypto)
 target_link_libraries(acme-client cjson CURL::libcurl)
 
-set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -g -Og -ggdb")
-set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror --coverage")
-set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
-set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DCONFIG_PRINT_ARGS")
+set (CMAKE_C_FLAGS "-Wall -Wextra -Werror")
+set (CMAKE_C_FLAGS_RELEASE "-O2")
+set (CMAKE_C_FLAGS_DEBUG "-Og -ggdb --coverage -fprofile-arcs -ftest-coverage \
+-DCONFIG_PRINT_ARGS")
 
