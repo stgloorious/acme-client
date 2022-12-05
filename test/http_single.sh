@@ -6,8 +6,7 @@ pebble_pid=$!
 sleep 5 # Wait for server to come up
 
 cmd="../acme-client --dir https://pebble:14000/dir --domain example.com \
-        --verbose --cert ../../test/pebble.minica.pem --agree-tos \
-        http01 --port 8080"
+        --verbose --cert ../../test/pebble.minica.pem --agree-tos --port 8080"
 echo "Running $cmd"
 timeout 60 echo "$cmd" | bash
 status=$?
