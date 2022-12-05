@@ -47,8 +47,7 @@ const char* http_method_strings[] = {"GET", "HEAD", "POST", "PUT", "DELETE",
 void* http_chal_server(void* port){
         struct http_chal_args args 
                 = *((struct http_chal_args*)port);
-        int con;
-        http_chal_start(args.port, args.host, &con);
+        http_chal_start(args.port);
         return NULL;
 }
 
@@ -179,13 +178,14 @@ int8_t http_parse(char* buf, uint16_t len, struct http_msg* msg) {
         
         return 0; 
 }
-int8_t http_chal_start(uint16_t port, char* record, int *con) {
+int8_t http_chal_start(uint16_t port) {
         /* open tcp socket */
-        struct sockaddr_in me, other; 
-        int tcp_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-        me.sin_family = AF_INET;
-        me.sin_port = htons(port);
-        me.sin_addr.s_addr = inet_addr(record);
+        struct sockaddr_in6 me, other; 
+        int tcp_socket = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
+        bzero(&me, sizeof(me));
+        me.sin6_family = AF_INET6;
+        me.sin6_port = htons(port);
+        me.sin6_addr = in6addr_any;
         setsockopt(tcp_socket, SOL_SOCKET, SO_REUSEADDR, 
                         &(int){1}, sizeof(int));
         setsockopt(tcp_socket, SOL_SOCKET, SO_REUSEPORT, 
@@ -204,19 +204,19 @@ int8_t http_chal_start(uint16_t port, char* record, int *con) {
         struct http_msg msg;
         char buf[1024];
         socklen_t addr_len = (socklen_t)sizeof(struct sockaddr_in);
-        *con = -1;
+        int con = -1;
                 //char c[32];
         //inet_ntop(AF_INET, ((struct sockaddr*)&other.sin_addr),
         //        c, sizeof(c));
 
         while(!int_shutdown) {
-                while(!int_shutdown && *con < 1) {
-                        *con = accept(tcp_socket, (struct sockaddr*)&other,
+                while(!int_shutdown && con < 1) {
+                        con = accept(tcp_socket, (struct sockaddr*)&other,
                                 &addr_len);
                 } 
                 if (!int_shutdown) {
                         //printf("New connection accepted.\n");
-                        int16_t rsize = recv(*con, buf, sizeof(buf),0);
+                        int16_t rsize = recv(con, buf, sizeof(buf),0);
                         //printf("%i",rsize);
                         if (rsize == 0){
                                 //printf("Client disconnected.\n");
@@ -235,8 +235,8 @@ int8_t http_chal_start(uint16_t port, char* record, int *con) {
                                         http_chal_respond(&response, 
                                                         acme_get_token
                                                         (msg.request_target),
-                                                        con);
-                                        *con = -1;
+                                                        &con);
+                                        con = -1;
                                 }
                         }
                 }

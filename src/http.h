@@ -39,7 +39,7 @@ struct http_chal_args {
 
 void* http_chal_server(void* port);
 
-int8_t http_start(uint16_t port, char* record, int* con);
+int8_t http_start(uint16_t port);
 
-int8_t http_chal_start(uint16_t port, char* record, int* con);
+int8_t http_chal_start(uint16_t port);
 
