@@ -1,5 +1,6 @@
 # acme-client
-[![CMake](https://github.com/stgloorious/acme-client/actions/workflows/cmake.yml/badge.svg)](https://github.com/stgloorious/acme-client/actions/workflows/cmake.yml)
+[![Build](https://github.com/stgloorious/acme-client/actions/workflows/build.yml/badge.svg)](https://github.com/stgloorious/acme-client/actions/workflows/build.yml)
+[![Test](https://github.com/stgloorious/acme-client/actions/workflows/test.yml/badge.svg)](https://github.com/stgloorious/acme-client/actions/workflows/test.yml)
 
 Simple ACME client written in C
 
