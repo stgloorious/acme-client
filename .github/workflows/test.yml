@@ -19,12 +19,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - uses: actions/upload-artifact@v3
-      with:
-        name: testing-log
-        path: build/Testing/Temporary/LastTest.log
-        if-no-files-found: error
-
+    
     - name: Updating package repository
       run: sudo apt update && sudo apt -y upgrade
 
@@ -56,3 +51,9 @@ jobs:
            curl -Os https://uploader.codecov.io/latest/linux/codecov &&
            chmod +x codecov &&
            ./codecov
+    - uses: actions/upload-artifact@v3
+      with:
+        name: testing-log
+        path: build/Testing/Temporary/LastTest.log
+        if-no-files-found: error
+
