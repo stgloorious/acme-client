@@ -20,20 +20,12 @@
  */
 
 struct curl_packet_info {
-        char* buffer;
-        uint32_t received;
-        uint32_t total_length;
+	char *buffer;
+	uint32_t received;
+	uint32_t total_length;
 };
 
-int8_t curl_post( char* url, 
-                  char* post,
-                  void* write_cb,
-                  void* header_cb,
-                  char* header, 
-                  char* ca_cert );
+int8_t curl_post(char *url, char *post, void *write_cb, void *header_cb,
+		 char *header, char *ca_cert);
 
-int8_t curl_get( char* url, 
-                 void* header_cb, 
-                 void* write_cb, 
-                 char* ca_cert );
-
+int8_t curl_get(char *url, void *header_cb, void *write_cb, char *ca_cert);

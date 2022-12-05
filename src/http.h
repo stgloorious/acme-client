@@ -23,23 +23,22 @@ enum http_method { GET, HEAD, POST, PUT, DELETE, CONNECT, OPTIONS, TRACE };
 
 enum http_version { HTTP11 };
 
-#define HTTP_STATUS_200_OK      200
+#define HTTP_STATUS_200_OK 200
 
 struct http_msg {
-        enum http_method method;
-        char* request_target;
-        enum http_version version;
-        uint16_t status;
+	enum http_method method;
+	char *request_target;
+	enum http_version version;
+	uint16_t status;
 };
 
 struct http_chal_args {
-        uint16_t port;
-        char* host;
+	uint16_t port;
+	char *host;
 };
 
-void* http_chal_server(void* port);
+void *http_chal_server(void *port);
 
 int8_t http_start(uint16_t port);
 
 int8_t http_chal_start(uint16_t port);
-

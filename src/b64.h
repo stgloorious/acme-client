@@ -28,7 +28,7 @@
  * @param[in] len_in strlen of @in
  * @param[in] len_out previously allocated size of @out array
  */
-void base64(uint8_t* in, char* out, uint16_t len_in, uint16_t len_out);
+void base64(uint8_t *in, char *out, uint16_t len_in, uint16_t len_out);
 
 /**
  * @brief encodes an array of bytes in base64 with url safe alphabet
@@ -38,7 +38,6 @@ void base64(uint8_t* in, char* out, uint16_t len_in, uint16_t len_out);
  * @param[in] len_in strlen of @in
  * @param[in] len_out previously allocated size of @out array
  */
-void base64url(uint8_t* in, char* out, uint16_t len_in, uint16_t len_out);
+void base64url(uint8_t *in, char *out, uint16_t len_in, uint16_t len_out);
 
-void b64_normal2url(char* b64_string);
-
+void b64_normal2url(char *b64_string);

@@ -19,18 +19,18 @@
  *
  */
 
-int8_t crypt_new_key(EVP_PKEY** key);
+int8_t crypt_new_key(EVP_PKEY **key);
 
-int8_t crpyt_read_key(char* keyfile, uint16_t klen, const EVP_PKEY* key);
+int8_t crpyt_read_key(char *keyfile, uint16_t klen, const EVP_PKEY *key);
 
-int8_t crypt_sign(const char* msg, EVP_PKEY* key, char* token, uint16_t tlen);
+int8_t crypt_sign(const char *msg, EVP_PKEY *key, char *token, uint16_t tlen);
 
-int8_t crypt_new_csr(EVP_PKEY** key, X509_REQ** csr, char* csr_pem, 
-                uint16_t len, struct string_node* domain_list);
+int8_t crypt_new_csr(EVP_PKEY **key, X509_REQ **csr, char *csr_pem,
+		     uint16_t len, struct string_node *domain_list);
 
-int8_t crypt_strip_csr(char* csr_pem);
+int8_t crypt_strip_csr(char *csr_pem);
 
-int8_t crypt_strip_cert(char* cert_pem);
+int8_t crypt_strip_cert(char *cert_pem);
 
 /**
  * @param[in] key private key used to sign the token
@@ -38,5 +38,4 @@ int8_t crypt_strip_cert(char* cert_pem);
  * @param[in] payload
  * @returns token, formatted for HTTP POST body
  */
-char* crypt_mktoken(EVP_PKEY** key, char* header, char* payload);
-
+char *crypt_mktoken(EVP_PKEY **key, char *header, char *payload);

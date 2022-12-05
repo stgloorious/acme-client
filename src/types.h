@@ -19,40 +19,40 @@
  */
 
 struct id_node {
-        struct acme_identifier* id;
-        struct id_node* next;       
+	struct acme_identifier *id;
+	struct id_node *next;
 };
 
 struct chal_node {
-        struct acme_chal* chal;     
-        struct chal_node* next;
+	struct acme_chal *chal;
+	struct chal_node *next;
 };
 
 struct authz_node {
-       struct acme_auth* auth;
-       struct authz_node* next;
+	struct acme_auth *auth;
+	struct authz_node *next;
 };
 
-struct id_node* 
-id_list_append (struct id_node* head, struct acme_identifier* new_id);
+struct id_node *id_list_append(struct id_node *head,
+			       struct acme_identifier *new_id);
 
-struct id_node*
-id_list_pop_back (struct id_node* head, struct acme_identifier* out);
+struct id_node *id_list_pop_back(struct id_node *head,
+				 struct acme_identifier *out);
 
-struct chal_node* 
-chal_list_append (struct chal_node* head, struct acme_chal* new_id);
+struct chal_node *chal_list_append(struct chal_node *head,
+				   struct acme_chal *new_id);
 
-struct chal_node*
-chal_list_pop_back (struct chal_node* head, struct acme_chal* out);
+struct chal_node *chal_list_pop_back(struct chal_node *head,
+				     struct acme_chal *out);
 
-struct authz_node* 
-authz_list_append (struct authz_node* head, struct acme_auth* new_id);
+struct authz_node *authz_list_append(struct authz_node *head,
+				     struct acme_auth *new_id);
 
-struct authz_node*
-authz_list_pop_back (struct authz_node* head, struct acme_auth* out);
+struct authz_node *authz_list_pop_back(struct authz_node *head,
+				       struct acme_auth *out);
 
-void id_list_delete(struct id_node* list);
+void id_list_delete(struct id_node *list);
 
-void authz_list_delete(struct authz_node* list);
+void authz_list_delete(struct authz_node *list);
 
-void chal_list_delete(struct chal_node* list);
+void chal_list_delete(struct chal_node *list);

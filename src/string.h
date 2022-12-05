@@ -22,9 +22,9 @@
 #include <stdlib.h>
 
 struct string_node {
-        char* string;
-        uint16_t strlen;
-        struct string_node* next;
+	char *string;
+	uint16_t strlen;
+	struct string_node *next;
 };
 
 /**
@@ -33,8 +33,8 @@ struct string_node {
  * @param[in] new_string null terminated string that is copied into new node
  * @returns head
  */
-struct string_node* 
-string_list_append (struct string_node* head, char* new_string);
+struct string_node *string_list_append(struct string_node *head,
+				       char *new_string);
 
 /** 
  * @brief Frees tail from the list and copies its string to buf
@@ -43,12 +43,11 @@ string_list_append (struct string_node* head, char* new_string);
  * @param[in] len size of @buf 
  * @returns head
  */
-struct string_node*
-string_list_pop_back (struct string_node* head, char* buf, uint16_t len);
+struct string_node *string_list_pop_back(struct string_node *head, char *buf,
+					 uint16_t len);
 
-struct string_node*
-string_list_copy(struct string_node* head);
+struct string_node *string_list_copy(struct string_node *head);
 
-void string_list_delete(struct string_node* head);
+void string_list_delete(struct string_node *head);
 
-void string_list_print(struct string_node* head);
+void string_list_print(struct string_node *head);
