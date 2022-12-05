@@ -4,5 +4,8 @@
 127.0.0.1  example.com
 ::1        example.com
 
+127.0.0.1  foobar.domain.com
+::1        foobar.domain.com
+
 127.0.0.1  pebble
 ::1        pebble
