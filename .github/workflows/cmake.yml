@@ -23,20 +23,11 @@ jobs:
     - name: Updating package repository
       run: sudo apt update && sudo apt -y upgrade
 
-    - name: Installing OpenSSL
-      run: sudo apt -y install openssl
-    
-    - name: Installing curl
-      run: sudo apt -y install libcurl4-openssl-dev
-      
-    - name: Installing cJSON
-      run: sudo apt -y install libcjson-dev
-
-    - name: Installing Pebble
-      run: sudo apt -y install pebble wireshark
-    - name: Tshark
-      run: tshark &
-           
+    - name: Installing necessary packages 
+      run: sudo apt -y install openssl libcurl4-openssl-dev libjcson-dev pebble
+   
+      # To test domain validation, the domains must be resolved to localhost
+      # so they point to the pebble testing server
     - name: Setting up static DNS entries
       run:  sudo cp test/hosts /etc/hosts && cat /etc/hosts
     
