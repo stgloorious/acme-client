@@ -1,6 +1,7 @@
 # acme-client
 [![Build](https://github.com/stgloorious/acme-client/actions/workflows/build.yml/badge.svg)](https://github.com/stgloorious/acme-client/actions/workflows/build.yml)
 [![Test](https://github.com/stgloorious/acme-client/actions/workflows/test.yml/badge.svg)](https://github.com/stgloorious/acme-client/actions/workflows/test.yml)
+[![codecov](https://codecov.io/gh/stgloorious/acme-client/branch/master/graph/badge.svg?token=H96Q1DZIG0)](https://codecov.io/gh/stgloorious/acme-client)
 
 Simple ACME client written in C
 
