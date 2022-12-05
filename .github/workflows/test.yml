@@ -42,7 +42,12 @@ jobs:
 
     - name: Test
       run: cd build && ctest --rerun-failed --output-on-failure
-     
+    
+    - uses: actions/upload-artifact@v3
+        with:
+              name: testing-log
+                  path: build/Testing/Temporary/LastTest.log
+
     - name: Coverage
       run: sudo apt -y install lcov &&
            cd build && gcov src/CMakeFiles/acme-client.dir/* &&
@@ -51,4 +56,3 @@ jobs:
            curl -Os https://uploader.codecov.io/latest/linux/codecov &&
            chmod +x codecov &&
            ./codecov
-
