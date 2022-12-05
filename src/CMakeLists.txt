@@ -11,6 +11,7 @@ target_link_libraries(acme-client OpenSSL::Crypto)
 target_link_libraries(acme-client cjson CURL::libcurl)
 
 set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -g -Og -ggdb")
-set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror")
+set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror --coverage")
+set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
 set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DCONFIG_PRINT_ARGS")
 

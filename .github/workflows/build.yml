@@ -21,7 +21,7 @@ jobs:
       run: sudo apt update && sudo apt -y upgrade
 
     - name: Installing necessary packages 
-      run: sudo apt -y install openssl libcurl4-openssl-dev libjcson-dev
+      run: sudo apt -y install openssl libcurl4-openssl-dev libcjson-dev
    
     - name: Build
       run: cmake -B build && cd build && make      

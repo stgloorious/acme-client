@@ -24,7 +24,7 @@ jobs:
       run: sudo apt update && sudo apt -y upgrade
 
     - name: Installing necessary packages 
-      run: sudo apt -y install openssl libcurl4-openssl-dev libjcson-dev pebble
+      run: sudo apt -y install openssl libcurl4-openssl-dev libcjson-dev pebble
    
       # To test domain validation, the domains must be resolved to localhost
       # so they point to the pebble testing server
