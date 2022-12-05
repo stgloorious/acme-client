@@ -45,7 +45,7 @@ jobs:
      
     - name: Coverage
       run: sudo apt -y install lcov
-      run: cd build && gcov src/CMakeFiles/acme-client.dir/*
-      run: cd build && lcov --capture --directory . --output-file out.info-file
-      run: cd build && genhtml out.info-file
+      run: cd build && gcov src/CMakeFiles/acme-client.dir/* &&
+           lcov --capture --directory . --output-file out.info-file &&
+           genhtml out.info-file
 
