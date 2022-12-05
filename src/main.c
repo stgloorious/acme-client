@@ -63,7 +63,10 @@ int main(int argc, char **argv)
 	arguments.verbose = 0;
 	arguments.tos_agree = 0;
 
-	argp_parse(&argp, argc, argv, 0, 0, &arguments);
+	if (!argp_parse(&argp, argc, argv, 0, 0, &arguments)) {
+		fprintf(stderr, "Error parsing command-line arguments.\n");
+		return EINVAL;
+	}
 	verbose = arguments.verbose;
 	if (verbose) {
 #ifdef CONFIG_PRINT_ARGS

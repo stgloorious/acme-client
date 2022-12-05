@@ -5,7 +5,8 @@ pebble -config "../../test/pebble-config.json" &
 pebble_pid=$!
 sleep 5 # Wait for server to come up
 
-cmd="valgrind --leak-check=full --exit-on-first-error=yes \
+cmd="valgrind --leak-check=full --show-leak-kinds=all \
+        --exit-on-first-error=yes \
         --error-exitcode=255 ../acme-client \
         --dir https://pebble:14000/dir --domain example.com \
         --verbose --cert ../../test/pebble.minica.pem --agree-tos --port 8080"

@@ -650,6 +650,7 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 		new_id->type = ACME_ID_DNS;
 		new_id->value = NULL;
 		new_auth->id = new_id;
+		new_auth->status = ACME_STATUS_UNKNOWN;
 
 		cJSON *challenges = cJSON_GetObjectItemCaseSensitive(
 			srv_resp, "challenges");

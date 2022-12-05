@@ -86,9 +86,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
 	case 'c':
 		arguments->server_cert = arg;
 		break;
-	case ARGP_KEY_ARG:
-		argp_usage(state);
-		break;
+	case ARGP_KEY_END:
 	case ARGP_KEY_NO_ARGS:
 		if (*arguments->dir_url == '\0') {
 			argp_error(state, "--dir DIR_URL is required!");
@@ -101,7 +99,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
 		}
 
 		state->next = state->argc;
-
 		break;
 	default:
 		return ARGP_ERR_UNKNOWN;
