@@ -1,0 +1,27 @@
+name: Build
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Updating package repository
+      run: sudo apt update && sudo apt -y upgrade
+
+    - name: Installing necessary packages 
+      run: sudo apt -y install openssl libcurl4-openssl-dev libjcson-dev
+   
+    - name: Build
+      run: cmake -B build && cd build && make      
