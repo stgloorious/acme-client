@@ -47,5 +47,8 @@ jobs:
       run: sudo apt -y install lcov &&
            cd build && gcov src/CMakeFiles/acme-client.dir/* &&
            lcov --capture --directory . --output-file out.info-file &&
-           genhtml out.info-file
+           genhtml out.info-file &&
+           curl -Os https://uploader.codecov.io/latest/linux/codecov &&
+           chmod +x codecov &&
+           ./codecov
 
