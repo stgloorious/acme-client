@@ -19,7 +19,12 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    
+    - uses: actions/upload-artifact@v3
+        with:
+          name: testing-log
+          path: build/Testing/Temporary/LastTest.log
+          if-no-files-found: error
+
     - name: Updating package repository
       run: sudo apt update && sudo apt -y upgrade
 
@@ -42,12 +47,7 @@ jobs:
 
     - name: Test
       run: cd build && ctest --rerun-failed --output-on-failure
-    
-    - uses: actions/upload-artifact@v3
-        with:
-              name: testing-log
-                  path: build/Testing/Temporary/LastTest.log
-
+     
     - name: Coverage
       run: sudo apt -y install lcov &&
            cd build && gcov src/CMakeFiles/acme-client.dir/* &&
