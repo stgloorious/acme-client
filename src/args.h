@@ -26,14 +26,12 @@ const char* argp_program_version = "acme-client v0.1\n"
 const char* argp_program_bug_address = "<code@stefan-gloor.ch>";
 
 static char doc[] = "Simple ACME client written in C";
-static char args_doc[] = "CHALLENGE TYPE {dns01 | http01}";
+static char args_doc[] = "";
 
 
 static struct argp_option options[] = {
         {"dir",      'u', "DIR_URL",      0,
                 "Directory URL of the ACME server that should be used.", 0},
-        {"record",   'r', "IPv4_ADDRESS", 0,
-                "IPv4 the HTTP server should bind to", 0},
         {"port", 'p', "PORT", 0, "Port number the HTTP server should bind to", 0},
         {"domain",   'd', "DOMAIN",       0,
                 "Domain for which to request the certificate. Can be used "
@@ -47,7 +45,6 @@ static struct argp_option options[] = {
 };
 
 struct arguments {
-        char* challenge_type;
         char* dir_url;
         char* record;
         char* port;
@@ -101,16 +98,8 @@ parse_opt (int key, char* arg, struct argp_state *state)
                                 return ARGP_ERR_UNKNOWN;
                         }
                         
-                        arguments->challenge_type = arg;
                         state->next = state->argc;
-                        
-                        if (strcmp(arguments->challenge_type, "http01") &&
-                                strcmp(arguments->challenge_type, "dns01")){
-                                argp_error(state, "CHALLENGE_TYPE must be " 
-                                                "either 'http01' or 'dns01'");
-                                return ARGP_ERR_UNKNOWN;
-                        }
-
+                       
                         break;
                 default:
                         return ARGP_ERR_UNKNOWN;

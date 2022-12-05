@@ -36,7 +36,6 @@
 
 #include "string.h"
 #include "args.h"
-#include "dns.h"
 #include "http.h"
 #include "acme.h"
 #include "b64.h"
@@ -68,7 +67,6 @@ int main (int argc, char** argv) {
         if (verbose) {
 #ifdef CONFIG_PRINT_ARGS
                 printf("Given command line options:\n");
-                printf("CHALLENGE_TYPE = %s\n", arguments.challenge_type);
                 printf("ndomain = %i\n", arguments.ndomain);
                 struct string_node* domains = string_list_copy(arguments.domain_list);
                 for (int i = 0; i < arguments.ndomain; i++){
@@ -130,14 +128,8 @@ int main (int argc, char** argv) {
                 sleep(2);
         }
  
-        enum acme_chal_type method = ACME_CHAL_DNS01;
-        if (!(strcmp(arguments.challenge_type, "dns01"))){
-                method = ACME_CHAL_DNS01;        
-        }
-        else if (!(strcmp(arguments.challenge_type, "http01"))){
-                method = ACME_CHAL_HTTP01; 
-        }
-
+        enum acme_chal_type method = ACME_CHAL_HTTP01;
+        
         /* run state machine that places order */
         int8_t ret = 0;
         while ((ret == 0) && !int_shutdown){
