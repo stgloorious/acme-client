@@ -28,7 +28,7 @@ const char *argp_program_version =
 const char *argp_program_bug_address = "<code@stefan-gloor.ch>";
 
 static char doc[] = "Simple ACME client written in C";
-static char args_doc[] = "";
+static char args_doc[] = "--domain DOMAIN";
 
 static struct argp_option options[] = {
 	{ "dir", 'u', "DIR_URL", 0,
