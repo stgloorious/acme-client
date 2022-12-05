@@ -35,7 +35,7 @@ jobs:
       run: sudo systemctl restart systemd-resolved
 
     - name: Test DNS server
-      run: dig example.com
+      run: dig example.com && dig foobar.domain.com
 
     - name: Build
       run: cmake -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -B build && cd build && make
