@@ -94,6 +94,7 @@ int8_t crypt_read_key(char *keyfile, int16_t klen, EVP_PKEY **key)
 	BIO_write(mem, keyfile, klen);
 	assert(mem != NULL);
 
+	EVP_PKEY_free(*key);
 	*key = PEM_read_bio_PrivateKey(mem, NULL, NULL, NULL);
 	if (*key == NULL) {
 		printf("Private key parsing error: must be in PEM format.\n");

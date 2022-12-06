@@ -1008,12 +1008,25 @@ int8_t acme_get_order_status(struct acme_account *client,
 
 int8_t acme_add_root_cert(char *ca_cert)
 {
+	/* pebble serves its root cert on this url */
+	//TODO don't have this hardcoded
 	curl_get("https://pebble:15000/roots/0", NULL, acme_root_cert_callback,
 		 ca_cert);
-	//printf("Root cert:\n%s\n", acme_root_cert);
+	/* append the root cert to the exisiting cert chain */
 	char *p = strstr(acme_cert_chain, "-----END CERTIFICATE-----");
+	if (p == NULL) {
+		fprintf(stderr, "Error parsing certificate chain: "
+				"did not receive PEM certificate\n");
+		return -1;
+	}
 	p += strlen("-----END CERTIFICATE-----");
 	p = strstr(p, "-----END CERTIFICATE-----");
+	if (p == NULL) {
+		fprintf(stderr, "Error parsing certificate chain: "
+				"only one PEM certificate in received "
+				"chain\n");
+		return -1;
+	}
 	p += strlen("-----END CERTIFICATE-----");
 	strcpy(p, "\n");
 	strcpy(p + 1, acme_root_cert);

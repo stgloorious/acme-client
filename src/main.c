@@ -128,6 +128,9 @@ int main(int argc, char **argv)
 		if (retry_count < 3) {
 			retry_count++;
 		} else {
+			acme_server_delete(server);
+			acme_cleanup();
+			EVP_PKEY_free(key);
 			return -1;
 		}
 		sleep(2);
@@ -163,6 +166,9 @@ int main(int argc, char **argv)
 		if (ret == -1) {
 			int_shutdown = 1;
 			sleep(2);
+			acme_server_delete(server);
+			acme_cleanup();
+			EVP_PKEY_free(key);
 			return -1;
 		}
 
