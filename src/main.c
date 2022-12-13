@@ -98,7 +98,6 @@ int main(int argc, char **argv)
 	client.key = &key;
 	client.order_list = NULL;
 	client.status = ACME_STATUS_UNKNOWN;
-	client.order = malloc(sizeof(struct acme_order));
 	client.authz_list = NULL;
 
 	/* The only information we have about the ACME server is the dir 
@@ -108,17 +107,11 @@ int main(int argc, char **argv)
 	struct acme_server *server = acme_server_new();
 	acme_server_add_resource(server, ACME_RES_DIR, arguments.dir_url);
 	if (acme_server_add_cert(server, arguments.server_cert) != 0) {
-		acme_server_delete(server);
-		acme_cleanup();
-		EVP_PKEY_free(key);
-		return -1;
+		goto fail;
 	}
 	if (acme_get_resources(server, arguments.tos_agree) != 0) {
 		fprintf(stderr, "Could not obtain ACME resource URLs.\n");
-		acme_server_delete(server);
-		acme_cleanup();
-		EVP_PKEY_free(key);
-		return -1;
+		goto fail;
 	}
 
 	/* Request a new account, which is identified by our key */
@@ -128,10 +121,7 @@ int main(int argc, char **argv)
 		if (retry_count < 3) {
 			retry_count++;
 		} else {
-			acme_server_delete(server);
-			acme_cleanup();
-			EVP_PKEY_free(key);
-			return -1;
+			goto fail;
 		}
 		sleep(2);
 	}
@@ -166,10 +156,7 @@ int main(int argc, char **argv)
 		if (ret == -1) {
 			int_shutdown = 1;
 			sleep(2);
-			acme_server_delete(server);
-			acme_cleanup();
-			EVP_PKEY_free(key);
-			return -1;
+			goto fail;
 		}
 
 		/* All challenges are validated at this point */
@@ -185,9 +172,19 @@ int main(int argc, char **argv)
 	while (ret == 0 && !int_shutdown) {
 		ret = acme_fsm_cert(&client, server, arguments.domain_list);
 	}
-
+	goto success;
+fail:
+	string_list_delete(arguments.domain_list);
 	acme_server_delete(server);
-	acme_cleanup();
+	acme_cleanup(&client);
+	free(client.order);
+	EVP_PKEY_free(key);
+	return -1;
+success:
+	string_list_delete(arguments.domain_list);
+	acme_server_delete(server);
+	acme_cleanup(&client);
+	free(client.order);
 	EVP_PKEY_free(key);
 	return 0;
 }

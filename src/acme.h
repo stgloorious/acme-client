@@ -244,4 +244,6 @@ char *acme_get_token(char *url);
 
 char *acme_get_token_dns();
 
-void acme_cleanup();
+void acme_cleanup(struct acme_account *client);
+
+void acme_free_auth(struct acme_auth *auth);

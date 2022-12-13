@@ -376,6 +376,7 @@ int8_t acme_new_acc(struct acme_account *client, struct acme_server *server)
 		  acme_header_cb, NULL, server->ca_cert);
 
 	free(token);
+	free(hdr.jwk);
 
 	/* Wait for response */
 	//TODO timeout
@@ -485,6 +486,7 @@ int8_t acme_new_order(struct acme_account *client, struct acme_server *server,
 	char *token = crypt_mktoken(client->key, header, payload);
 
 	cJSON_Delete(identifiers);
+	free(payload);
 
 	/* Make the HTTP POST request */
 	curl_post(server->resources[ACME_RES_NEW_ORDER], token, acme_write_cb,
@@ -529,12 +531,6 @@ int8_t acme_new_order(struct acme_account *client, struct acme_server *server,
 	cJSON_ArrayForEach(auth, authz)
 	{
 		if (cJSON_IsString(auth)) {
-			struct acme_auth *new_auth =
-				malloc(sizeof(struct acme_auth));
-			new_auth->status = ACME_STATUS_UNKNOWN;
-			new_auth->id = NULL;
-			new_auth->challenges = NULL;
-			new_auth->wildcard = 0;
 			client->order->authz = string_list_append(
 				client->order->authz, auth->valuestring);
 		} else {
@@ -555,6 +551,8 @@ int8_t acme_new_order(struct acme_account *client, struct acme_server *server,
 			new_id->type = ACME_ID_DNS;
 			client->order->identifiers = id_list_append(
 				client->order->identifiers, new_id);
+			free(new_id->value);
+			free(new_id);
 		} else {
 			printf("Identifier parse error\n");
 		}
@@ -679,7 +677,7 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 				       " need to be fulfilled.\n",
 				       id_value->valuestring);
 			}
-			free(new_auth);
+			acme_free_auth(new_auth);
 		} else if (acme_get_status(status->valuestring) ==
 			   ACME_STATUS_PENDING) {
 			need_chal = 1;
@@ -720,8 +718,7 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 						"Challenge has invalid status.\n");
 					free(new_chal);
 					chal_list_delete(new_auth->challenges);
-					free(new_auth);
-					free(new_id);
+					acme_free_auth(new_auth);
 					return -1;
 				}
 
@@ -740,8 +737,10 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 				strcpy(new_chal->url, url->valuestring);
 				new_auth->challenges = chal_list_append(
 					new_auth->challenges, new_chal);
+				free(new_chal->token);
+				free(new_chal->url);
+				free(new_chal);
 			}
-			//cJSON_Delete(srv_resp);
 
 			/* check for wildcard domain */
 			if (cJSON_IsBool(wildcard)) {
@@ -750,15 +749,20 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 				}
 			}
 			if (new_auth->status == ACME_STATUS_INVALID) {
+				acme_free_auth(new_auth);
 				return -1;
 			}
 			if (verbose) {
 				printf("Parsed authorization object for \"%s\".\n",
 				       new_auth->id->value);
 			}
-			assert(new_auth->challenges != NULL);
 			client->authz_list =
 				authz_list_append(client->authz_list, new_auth);
+			chal_list_delete(new_auth->challenges);
+			new_auth->challenges = NULL;
+			free(new_auth->id->value);
+			free(new_auth->id);
+			free(new_auth);
 			free(acme_srv_response);
 			acme_srv_response = NULL;
 		} else if (acme_get_status(status->valuestring) ==
@@ -767,8 +771,7 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 			       "The server could not verify the "
 			       "challenges. Check domain name and "
 			       "firewall rules and try again.\n");
-			free(new_auth);
-			free(new_id);
+			acme_free_auth(new_auth);
 			free(acme_srv_response);
 			acme_srv_response = NULL;
 			return -1;
@@ -777,6 +780,7 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 			free(acme_srv_response);
 			acme_srv_response = NULL;
 		}
+		cJSON_Delete(srv_resp);
 	}
 	if (need_chal) {
 		return 0;
@@ -817,10 +821,14 @@ int8_t acme_authorize(struct acme_account *client, struct acme_server *server,
 
 	struct acme_auth *auth = malloc(sizeof(struct acme_auth));
 	auth->challenges = NULL;
+	auth->wildcard = 0;
+	auth->id = malloc(sizeof(struct acme_identifier));
+	auth->id->type = ACME_ID_DNS;
+	auth->id->value = NULL;
+	auth->status = ACME_STATUS_UNKNOWN;
 	while (client->authz_list != NULL) {
 		client->authz_list =
 			authz_list_pop_back(client->authz_list, auth);
-
 		struct acme_chal *chal = malloc(sizeof(struct acme_chal));
 		chal->type = ACME_CHAL_HTTP01;
 		chal->token = NULL;
@@ -830,7 +838,7 @@ int8_t acme_authorize(struct acme_account *client, struct acme_server *server,
 		/* Auth object must contain at least 
                  * one challenge to continue */
 		if (auth->challenges == NULL) {
-			free(auth);
+			acme_free_auth(auth);
 			return -1;
 		}
 
@@ -840,7 +848,10 @@ int8_t acme_authorize(struct acme_account *client, struct acme_server *server,
 			if (chal->type == method) {
 				break;
 			}
+			free(chal->token);
+			free(chal->url);
 		}
+		acme_free_auth(auth);
 		if (chal->type != method) {
 			fprintf(stderr, "Can not authorize: server did "
 					"not offer a challenge of type of "
@@ -869,6 +880,9 @@ int8_t acme_authorize(struct acme_account *client, struct acme_server *server,
 		curl_post(chal->url, token, acme_write_cb, acme_header_cb, NULL,
 			  server->ca_cert);
 
+		free(chal->token);
+		free(chal->url);
+		free(chal);
 		free(token);
 
 		/* Wait for response */
@@ -883,11 +897,6 @@ int8_t acme_authorize(struct acme_account *client, struct acme_server *server,
 				printf("JSON parse error in server response: err\n");
 			}
 			return -1;
-		}
-		cJSON *status =
-			cJSON_GetObjectItemCaseSensitive(srv_resp, "status");
-		if (cJSON_IsString(status)) {
-			chal->status = acme_get_status(status->valuestring);
 		}
 		free(acme_srv_response);
 		acme_srv_response = NULL;
@@ -930,6 +939,7 @@ int8_t acme_finalize(struct acme_account *client, struct acme_server *server,
 		  acme_header_cb, NULL, server->ca_cert);
 
 	free(token);
+	X509_REQ_free(csr);
 
 	/* Wait for response */
 	//TODO timeout
@@ -958,6 +968,7 @@ int8_t acme_finalize(struct acme_account *client, struct acme_server *server,
 		ret = -1;
 	}
 
+	cJSON_Delete(srv_resp);
 	free(acme_srv_response);
 	acme_srv_response = NULL;
 
@@ -1051,6 +1062,8 @@ int8_t acme_get_cert(struct acme_account *client, struct acme_server *server)
 	char *headers = "Accept: application/pem-certificate-chain";
 	curl_post(client->order->cert_url, token, acme_cert_callback,
 		  acme_header_cb, headers, server->ca_cert);
+
+	free(token);
 
 	/* TODO parse answer */
 	free(acme_srv_response);
@@ -1228,9 +1241,24 @@ char *acme_write_header(struct acme_header *header)
 	return out;
 }
 
-void acme_cleanup()
+void acme_cleanup(struct acme_account *client)
 {
 	if (acme_nonce != NULL) {
 		free(acme_nonce);
 	}
+	string_list_delete(client->order->authz);
+	id_list_delete(client->order->identifiers);
+	authz_list_delete(client->authz_list);
+	free(client->order_list);
+	free(client->order->cert_url);
+	free(client->order->finalize_url);
+	free(client->order->order_url);
+}
+
+void acme_free_auth(struct acme_auth *auth)
+{
+	free(auth->id->value);
+	free(auth->id);
+	chal_list_delete(auth->challenges);
+	free(auth);
 }

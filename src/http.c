@@ -230,11 +230,12 @@ int8_t http_chal_start(uint16_t port)
 					struct http_msg response;
 					response.status = HTTP_STATUS_200_OK;
 					response.version = HTTP11;
-					http_chal_respond(
-						&response,
-						acme_get_token(
-							msg.request_target),
-						&con);
+					char *token = acme_get_token(
+						msg.request_target);
+					http_chal_respond(&response, token,
+							  &con);
+					free(msg.request_target);
+					free(token);
 					con = -1;
 				}
 			}

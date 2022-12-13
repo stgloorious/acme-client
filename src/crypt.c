@@ -285,7 +285,9 @@ int8_t crypt_new_csr(EVP_PKEY **key, X509_REQ **csr, char *csr_pem,
 	BIO *buf = BIO_new(BIO_s_mem());
 	PEM_write_bio_X509_REQ(buf, *csr);
 	BIO_read(buf, csr_pem, len);
-
+	BIO_free(buf);
+	X509_EXTENSION_free(ex);
+	sk_X509_EXTENSION_free(exts);
 	return 0;
 }
 

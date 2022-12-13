@@ -8,7 +8,7 @@ sleep 5 # Wait for server to come up
 cmd="../acme-client --dir https://pebble:14000/dir --domain foobar.domain.com \
         --cert ../../test/pebble.minica.pem --agree-tos --port 8080"
 echo "Running $cmd"
-timeout 60 echo "$cmd" | bash
+timeout 90 echo "$cmd" | bash
 status=$?
 
 if [[ $status -ne 0 ]]; then
