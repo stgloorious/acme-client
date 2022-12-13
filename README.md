@@ -13,10 +13,6 @@ ACME (Automatic Certificate Management Environment) is a protocol specified by [
 - HTTP-01 validation
 - Automatic HTTP challenge validation, no user interaction required
 
-### TODO's
-- dns01 validation
-- Support for wildcard domains
-
 ## Usage 
     Usage: acme-client [OPTION...]
     Simple ACME client written in C
@@ -44,39 +40,46 @@ ACME (Automatic Certificate Management Environment) is a protocol specified by [
 3. Copy client.key and cert.crt to the right location & restart webserver 
 
         systemctl start nginx
-    
-#### Obtaining a certificate from local [Pebble testing server](https://github.com/letsencrypt/pebble)
-
-    ./acme-client http01 --agree-tos --dir https://pebble:14000/dir --domain example.com --cert=../pebble.minica.pem --port 5080
-
-    Terms of service are located at data:text/plain,Do%20what%20thou%20wilt
-    Accepting terms of service.
-    Performing automatic validation
-    HTTP challenge server started on port 5080
-    Terminated HTTP challenge server
-    All domains were successfully verified.
-    Certificate saved to cert.crt
-
 
 ## Installation
+A binary release is planned as soon as acme-client is more stable. For now, you have to compile it yourself. Linux only.
+
+acme-client comes in two configurations: Debug and Release. The debug build contains all the tests that are also used in the Github testing CI pipeline. It has some unit tests and does testing against a local [ACME testing server](https://github.com/letsencrypt/pebble). It uses Valgrind to spot memory leaks and other memory-related issues.
+
 ### Building from source
 #### Dependencies
+Besides a standard GCC installation you need the following packages.
+For the release build:
 - OpenSSL >= 3.0.0
 - cURL
 - [cJSON](https://github.com/DaveGamble/cJSON)
-- cmake
+- CMake >= 3.20
 
-#### Ubuntu 22.04
+#### Ubuntu 22.04 (Release build)
     sudo apt install libcurl4-openssl-dev libcjson-dev openssl libssl-dev cmake
+
+Needed additionally for testing (debug build):
+- [Pebble](https://github.com/letsencrypt/pebble)
+- Python >= 3.9
+- Valgrind
+    
+#### Ubuntu 22.04 (Debug build)
+    sudo apt install libcurl4-openssl-dev libcjson-dev openssl libssl-dev cmake valgrind pebble python
         
 #### Using CMake
-1. Getting the sources
+Get the sources: 
 
         git clone https://github.com/stgloorious/acme-client && cd acme-client
     
-2. Compile
+Compile (Release build):
 
-        cmake -DOPENSSL_ROOT_DIR=/opt/openssl-3.0.7 -DCMAKE_BUILD_TYPE=Release -B build
+        cmake -DCMAKE_BUILD_TYPE=Release -B build
         cd build && make
+     
+Compile and test (Debug build):
+
+        cmake -DCMAKE_BUILD_TYPE=Debug -B build
+        cd build && make all test
         
-Choose build configuration "Debug" to also build tests.
+        
+
