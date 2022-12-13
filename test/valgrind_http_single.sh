@@ -16,13 +16,13 @@ if [[ $pebble_stat -ne 0 ]]; then
 fi
 
 echo "Running $cmd"
-timeout 90 echo "$cmd" | bash
+echo "$cmd" | bash
 status=$?
 
 $TEST_DIR/kill_pebble.sh
 
 if [[ $status -ne 0 ]]; then
-        echo "Test FAILED."
+        echo "Executable exited with code $status: Test FAILED."
         exit -1
 fi
 
