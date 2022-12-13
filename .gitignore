@@ -1,1 +1,5 @@
 build/
+test/pebble/pebble-config.json
+test/pebble/root.pem
+test/CMakeCache.txt
+test/CMakeFiles

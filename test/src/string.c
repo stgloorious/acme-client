@@ -1,6 +1,6 @@
 #include <stdint.h>
 #include <stdio.h>
-#include "../src/string.h"
+#include "../../src/string.h"
 
 struct string_node *list = NULL;
 

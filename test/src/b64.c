@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include "../src/b64.h"
+#include "../../src/b64.h"
 
 int main(int argc, char **argv)
 {

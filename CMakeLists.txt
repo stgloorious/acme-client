@@ -14,7 +14,7 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
         set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/build/test)
         set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/build/test)
         set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/build/test)
-
+        set(CMAKE_CTEST_ARGUMENTS --output-on-failure)
         enable_testing()
         add_subdirectory(test)
 endif()

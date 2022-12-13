@@ -57,7 +57,7 @@ ref="Zm9vYg"
 check $ref $tst 
 
 # Randomized test
-for i in {0..32}; do
+for i in {0..8}; do
         nbytes=$(echo -n $(($RANDOM % 512)))
         echo -n $nbytes > nbytes
         cat /dev/random | head -c$nbytes > random_data

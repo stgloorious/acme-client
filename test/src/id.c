@@ -5,8 +5,8 @@
 
 #include <openssl/evp.h>
 #include <cjson/cJSON.h>
-#include "../src/types.h"
-#include "../src/acme.h"
+#include "../../src/types.h"
+#include "../../src/acme.h"
 
 uint16_t __atoi(char *str)
 {
