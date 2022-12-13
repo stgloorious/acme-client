@@ -669,6 +669,7 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 			free(acme_srv_response);
 			acme_srv_response = NULL;
 			cJSON_Delete(srv_resp);
+			acme_free_auth(new_auth);
 			return -1;
 		} else if (acme_get_status(status->valuestring) ==
 			   ACME_STATUS_VALID) {
