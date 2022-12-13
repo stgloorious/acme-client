@@ -1,5 +1,7 @@
 find_package(OpenSSL 3 REQUIRED)
 find_package(CURL REQUIRED)
+find_package(cJSON REQUIRED)
+find_program(pebble NAMES pebble_linux-amd64 pebble REQUIRED)
 
 file(GLOB sources ../src/*.c)
 

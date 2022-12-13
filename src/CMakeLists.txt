@@ -1,5 +1,6 @@
 find_package(OpenSSL 3 REQUIRED)
 find_package(CURL REQUIRED)
+find_package(cJSON REQUIRED)
 
 file(GLOB sources *.c)
 
