@@ -240,7 +240,9 @@ int8_t acme_fsm_cert(struct acme_account *client, struct acme_server *server,
 			printf("Certificate is ready.\n");
 		acme_get_cert(client, server);
 		acme_fsm_validate_state = ACME_STATE_GET_ACC;
-		acme_add_root_cert(server->ca_cert);
+		if (acme_add_root_cert(server->ca_cert)) {
+			return -1;
+		}
 
 		sleep(1);
 		FILE *fd;
@@ -326,12 +328,6 @@ size_t acme_write_cb(char *ptr, size_t size, size_t nmemb, void *packet_info)
 size_t acme_cert_callback(char *ptr, size_t size, size_t nmemb)
 {
 	sprintf(acme_cert_chain + strlen(acme_cert_chain), "%s", ptr);
-	return size * nmemb;
-}
-
-size_t acme_root_cert_callback(char *ptr, size_t size, size_t nmemb)
-{
-	sprintf(acme_root_cert + strlen(acme_root_cert), "%s", ptr);
 	return size * nmemb;
 }
 
@@ -666,6 +662,10 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 			cJSON_GetObjectItemCaseSensitive(srv_resp, "status");
 
 		if (!cJSON_IsString(status)) {
+			fprintf(stderr,
+				"Error while checking authorization "
+				"state:\n%s\n",
+				acme_srv_response);
 			free(acme_srv_response);
 			acme_srv_response = NULL;
 			cJSON_Delete(srv_resp);
@@ -1022,8 +1022,12 @@ int8_t acme_add_root_cert(char *ca_cert)
 {
 	/* pebble serves its root cert on this url */
 	//TODO don't have this hardcoded
-	curl_get("https://pebble:15000/roots/0", NULL, acme_root_cert_callback,
+	curl_get("https://pebble:15000/roots/0", acme_header_cb, acme_write_cb,
 		 ca_cert);
+	strcpy(acme_root_cert + strlen(acme_root_cert), acme_srv_response);
+	free(acme_srv_response);
+	acme_srv_response = NULL;
+
 	/* append the root cert to the exisiting cert chain */
 	char *p = strstr(acme_cert_chain, "-----END CERTIFICATE-----");
 	if (p == NULL) {
