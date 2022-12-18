@@ -22,17 +22,8 @@
  */
 
 /**
- * @brief encodes an array of bytes in base64
- * @param[in] in string to be encoded
- * @param[out] out base64 encoded string, null-terminated
- * @param[in] len_in strlen of @in
- * @param[in] len_out previously allocated size of @out array
- */
-void base64(uint8_t *in, char *out, uint16_t len_in, uint16_t len_out);
-
-/**
- * @brief encodes an array of bytes in base64 with url safe alphabet
- * @note this implementation of base64url does never add padding
+ * encodes an array of bytes in base64 with url safe alphabet
+ * this implementation of base64url does never add padding
  * @param[in] in string to be encoded
  * @param[out] out base64 encoded string, null-terminated
  * @param[in] len_in strlen of @in
@@ -40,4 +31,6 @@ void base64(uint8_t *in, char *out, uint16_t len_in, uint16_t len_out);
  */
 void base64url(uint8_t *in, char *out, uint16_t len_in, uint16_t len_out);
 
+/* Translates base64 encoded strings to encoded strings
+ * using an url-safe alphabet in-place */
 void b64_normal2url(char *b64_string);
