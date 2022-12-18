@@ -204,7 +204,7 @@ int8_t acme_fsm_validate(struct acme_account *client,
 		if (acme_get_auth(client, server) == -1) {
 			printf("Authorization is not ready yet.\n");
 			sleep(1);
-			return -1;
+			return 0;
 		}
 		if (client->authz_list == NULL) {
 			return 1;
@@ -1021,6 +1021,8 @@ int8_t acme_get_order_status(struct acme_account *client,
 	cJSON *certificate =
 		cJSON_GetObjectItemCaseSensitive(srv_resp, "certificate");
 
+	printf("%s\n", acme_srv_response);
+
 	free(acme_srv_response);
 	acme_srv_response = NULL;
 
@@ -1095,10 +1097,15 @@ int8_t acme_get_cert(struct acme_account *client, struct acme_server *server)
 
 	free(token);
 
-	/* TODO parse answer */
-	//free(acme_srv_response);
-	//acme_srv_response = NULL;
+	/* We expect a PEM certificate chain here, so normally
+         * this parse would fail. If e.g. the nonce is rejected,
+         * this error will be detected here. */
+	cJSON *srv_resp = cJSON_Parse(acme_srv_response);
+	cJSON *status = cJSON_GetObjectItemCaseSensitive(srv_resp, "status");
 
+	if (status != NULL) {
+		return -1;
+	}
 	return 0;
 }
 
