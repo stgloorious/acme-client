@@ -24,10 +24,7 @@
 #include <stdint.h>
 #include <assert.h>
 #include <stdio.h>
-
-const char *b64_alphabet = { "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-			     "abcdefghijklmnopqrstuvwxyz"
-			     "0123456789+/" };
+#include <math.h>
 
 const char *b64url_alphabet = { "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 				"abcdefghijklmnopqrstuvwxyz"
@@ -35,60 +32,56 @@ const char *b64url_alphabet = { "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 void base64url(uint8_t *in, char *out, uint16_t len_in, uint16_t len_out)
 {
-	uint16_t out_index = 0;
-	uint16_t i = 0;
-	for (i = 0; i < len_in; i++) {
-		assert(len_out > out_index);
-		switch (i % 3) {
+	/* The output is ceil(4/3)*len_in plus room for \0 at the end */
+	assert(len_out > (ceil((4.0 / 3.0) * len_in)));
+
+	uint16_t oindex = 0; //index of the output string
+	uint16_t iindex = 0; //index of the input string
+	for (iindex = 0; iindex < len_in; iindex++) {
+		/* depending on the relative position of the input 
+                 * character (mod 3), it influences 2 of the 4 output characters
+                 * for each 3 letter input */
+		switch (iindex % 3) {
 		case 0:
-			*(out + out_index) = b64url_alphabet
-				[((uint8_t)(*(in + i) & 0xfc) >> 2) & 0x3f];
-			out_index++;
-			assert(len_out > out_index);
-			*(out + out_index) = (((*(in + i) & 0x03) << 4) & 0x30);
+			*(out + oindex) = b64url_alphabet
+				[((uint8_t)(*(in + iindex) & 0xfc) >> 2) & 0x3f];
+			oindex++;
+			*(out + oindex) =
+				(((*(in + iindex) & 0x03) << 4) & 0x30);
 			break;
 		case 1:
-			*(out + out_index) |=
-				(((*(in + i) & 0xf0) >> 4) & 0x0f);
-			assert(*(out + out_index) < 64);
-			*(out + out_index) =
-				b64url_alphabet[(uint8_t)(*(out + out_index))];
-			out_index++;
-			assert(len_out > out_index);
-			*(out + out_index) = ((*(in + i) & 0x0f) << 2) & 0x3c;
+			*(out + oindex) |=
+				(((*(in + iindex) & 0xf0) >> 4) & 0x0f);
+			*(out + oindex) =
+				b64url_alphabet[(uint8_t)(*(out + oindex))];
+			oindex++;
+			*(out + oindex) = ((*(in + iindex) & 0x0f) << 2) & 0x3c;
 			break;
 		case 2:
-			*(out + out_index) |= ((*(in + i) & 0xc0) >> 6) & 0x03;
-			assert(*(out + out_index) < 64);
-			*(out + out_index) =
-				b64url_alphabet[(uint8_t) * (out + out_index)];
-			out_index++;
-			assert(len_out > out_index);
-			*(out + out_index) =
-				b64url_alphabet[((uint8_t)(*(in + i) & 0x3f)) &
-						0x3f];
-			out_index++;
+			*(out + oindex) |= ((*(in + iindex) & 0xc0) >> 6) &
+					   0x03;
+			*(out + oindex) =
+				b64url_alphabet[(uint8_t) * (out + oindex)];
+			oindex++;
+			*(out + oindex) = b64url_alphabet
+				[((uint8_t)(*(in + iindex) & 0x3f)) & 0x3f];
+			oindex++;
 			break;
 		}
 	}
-	switch (i % 3) {
+	switch (iindex % 3) {
 	case 0:
-		//out[out_index-1] = '\0';
 		break;
 	case 1:
-		*(out + out_index) =
-			b64url_alphabet[(uint8_t)(*(out + out_index))];
-		out_index++;
+		*(out + oindex) = b64url_alphabet[(uint8_t)(*(out + oindex))];
+		oindex++;
 		break;
 	case 2:
-		*(out + out_index) =
-			b64url_alphabet[(uint8_t)(*(out + out_index))];
-		out_index++;
+		*(out + oindex) = b64url_alphabet[(uint8_t)(*(out + oindex))];
+		oindex++;
 		break;
 	}
-
-	assert(len_out > out_index);
-	out[out_index] = '\0';
+	out[oindex] = '\0';
 }
 
 void b64_normal2url(char *b64_string)

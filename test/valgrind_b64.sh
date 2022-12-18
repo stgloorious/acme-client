@@ -32,27 +32,27 @@ valgrind_cmd="valgrind --error-exitcode=255 --exit-on-first-error=yes --leak-che
 
 # Test vectors from RFC 4648
 echo -n "" > random_data
-tst=$($valgrind_cmd ./b64 0 "random_data")
+tst=$($valgrind_cmd ./b64 0 1 "random_data") || exit -1
 ref=""
 check $ref $tst 
 
 echo -n "f" > random_data
-tst=$($valgrind_cmd ./b64 1 "random_data")
+tst=$($valgrind_cmd ./b64 1 3 "random_data") || exit -1
 ref="Zg"
 check $ref $tst 
 
 echo -n "fo" > random_data
-tst=$($valgrind_cmd ./b64 2 "random_data")
+tst=$($valgrind_cmd ./b64 2 4 "random_data") || exit -1
 ref="Zm8"
 check $ref $tst 
 
 echo -n "foo" > random_data
-tst=$($valgrind_cmd ./b64 3 "random_data")
+tst=$($valgrind_cmd ./b64 3 5 "random_data") || exit -1
 ref="Zm9v"
 check $ref $tst 
 
 echo -n "foob" > random_data
-tst=$($valgrind_cmd ./b64 4 "random_data")
+tst=$($valgrind_cmd ./b64 4 7 "random_data") || exit -1
 ref="Zm9vYg"
 check $ref $tst 
 
@@ -61,10 +61,9 @@ for i in {0..8}; do
         nbytes=$(echo -n $(($RANDOM % 512)))
         echo -n $nbytes > nbytes
         cat /dev/random | head -c$nbytes > random_data
-        #echo $RANDOM | base64 | head -c$nbytes > random_data
 
         ref=$(base64 -w0 random_data | tr '+/' '-_' | tr -d '=')
-        tst=$($valgrind_cmd ./b64 "$nbytes" "random_data")
+        tst=$($valgrind_cmd ./b64 "$nbytes" "$(( $nbytes *2 ))" "random_data") || exit -1
 
         check "$ref" "$tst"
 done
