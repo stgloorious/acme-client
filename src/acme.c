@@ -202,6 +202,8 @@ int8_t acme_fsm_validate(struct acme_account *client,
 		if (verbose)
 			printf("Checking authorization state.\n");
 		if (acme_get_auth(client, server) == -1) {
+			printf("Authorization is not ready yet.\n");
+			sleep(1);
 			return -1;
 		}
 		if (client->authz_list == NULL) {
@@ -239,9 +241,12 @@ int8_t acme_fsm_cert(struct acme_account *client, struct acme_server *server,
 		if (verbose)
 			printf("Certificate is ready.\n");
 		acme_get_cert(client, server);
+		strcpy(acme_cert_chain, acme_srv_response);
+		free(acme_srv_response);
+		acme_srv_response = NULL;
 		acme_fsm_validate_state = ACME_STATE_GET_ACC;
 		if (acme_add_root_cert(server->ca_cert)) {
-			return -1;
+			return 0;
 		}
 
 		sleep(1);
@@ -287,28 +292,46 @@ size_t acme_header_cb(char *buf, size_t size, size_t nitems, void *packet_info)
 		int32_t len = atoi(buf + 16);
 		struct curl_packet_info *packet =
 			(struct curl_packet_info *)packet_info;
-		packet->buffer = malloc(len);
+		packet->buffer = (len != 0) ? malloc(len) : NULL;
 		packet->received = 0;
 		packet->total_length = len;
+		packet->chunked = 0;
+	} /* The server might use chunked transfer, meaning the 
+           * server is not aware of the length of the data yet.
+           * The transfer ends with a zero-length chunk */
+	else if (!strncmp("Transfer-Encoding: chunked", buf, 26)) {
+		struct curl_packet_info *packet =
+			(struct curl_packet_info *)packet_info;
+		packet->buffer = NULL;
+		packet->received = 0;
+		packet->total_length = 0;
+		packet->chunked = 1;
 	}
+
 	return nitems * size;
 }
 
 size_t acme_write_cb(char *ptr, size_t size, size_t nmemb, void *packet_info)
 {
-	assert(acme_srv_response == NULL);
-
 	/* This struct contains information about the current packet
          * this write_cb corresponds to. Most of the time all of the
          * data will be received with a single call to wb, but this is
          * not always the case */
 	struct curl_packet_info *packet =
 		(struct curl_packet_info *)packet_info;
-	assert(packet->buffer != NULL); //buffer allocated in header_cb
 
+	if (packet->chunked) {
+		acme_srv_response = realloc(
+			acme_srv_response, packet->received + size * nmemb + 1);
+		memcpy(acme_srv_response + packet->received, ptr, size * nmemb);
+		packet->received += size * nmemb;
+		*(acme_srv_response + packet->received) = '\0';
+
+		return size * nmemb;
+	}
 	/* Append the new data to the buffer */
+	assert(packet->buffer != NULL);
 	memcpy(packet->buffer + packet->received, ptr, size * nmemb);
-
 	packet->received += size * nmemb;
 	if (packet->received == packet->total_length) {
 		/* Packet is received completely */
@@ -322,12 +345,7 @@ size_t acme_write_cb(char *ptr, size_t size, size_t nmemb, void *packet_info)
 		packet->received = 0;
 		packet->total_length = 0;
 	}
-	return size * nmemb;
-}
 
-size_t acme_cert_callback(char *ptr, size_t size, size_t nmemb)
-{
-	sprintf(acme_cert_chain + strlen(acme_cert_chain), "%s", ptr);
 	return size * nmemb;
 }
 
@@ -629,7 +647,8 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 			const char *err = cJSON_GetErrorPtr();
 			if (err != NULL) {
 				printf("JSON parse error"
-				       "in server response: err\n");
+				       "in server response: %s\n",
+				       err);
 			}
 			free(acme_srv_response);
 			acme_srv_response = NULL;
@@ -681,6 +700,7 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 			acme_free_auth(new_auth);
 		} else if (acme_get_status(status->valuestring) ==
 			   ACME_STATUS_PENDING) {
+			printf("Authorization is pending.\n");
 			need_chal = 1;
 			new_id->type = ACME_ID_DNS;
 			if (cJSON_IsString(id_value)) {
@@ -750,6 +770,8 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 				}
 			}
 			if (new_auth->status == ACME_STATUS_INVALID) {
+				fprintf(stderr,
+					"Authorization has invalid status.\n");
 				acme_free_auth(new_auth);
 				return -1;
 			}
@@ -784,6 +806,7 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 		cJSON_Delete(srv_resp);
 	}
 	if (need_chal) {
+		printf("need_chal\n");
 		return 0;
 	}
 	return 1;
@@ -1031,8 +1054,10 @@ int8_t acme_add_root_cert(char *ca_cert)
 	/* append the root cert to the exisiting cert chain */
 	char *p = strstr(acme_cert_chain, "-----END CERTIFICATE-----");
 	if (p == NULL) {
-		fprintf(stderr, "Error parsing certificate chain: "
-				"did not receive PEM certificate\n");
+		fprintf(stderr,
+			"Error parsing certificate chain: "
+			"did not receive PEM certificate:\n%s\n",
+			acme_cert_chain);
 		return -1;
 	}
 	p += strlen("-----END CERTIFICATE-----");
@@ -1065,14 +1090,14 @@ int8_t acme_get_cert(struct acme_account *client, struct acme_server *server)
 
 	/* Make HTTP POST request */
 	char *headers = "Accept: application/pem-certificate-chain";
-	curl_post(client->order->cert_url, token, acme_cert_callback,
-		  acme_header_cb, headers, server->ca_cert);
+	curl_post(client->order->cert_url, token, acme_write_cb, acme_header_cb,
+		  headers, server->ca_cert);
 
 	free(token);
 
 	/* TODO parse answer */
-	free(acme_srv_response);
-	acme_srv_response = NULL;
+	//free(acme_srv_response);
+	//acme_srv_response = NULL;
 
 	return 0;
 }
@@ -1138,10 +1163,8 @@ int8_t acme_new_nonce(struct acme_server *server)
 int8_t acme_get_resources(struct acme_server *server, uint8_t accept_tos)
 {
 	/* Resources can be fetched with GET, no POST-as-GET needed */
-	if (curl_get(server->resources[ACME_RES_DIR], acme_header_cb,
-		     acme_write_cb, server->ca_cert) != 0) {
-		return -1;
-	}
+	curl_get(server->resources[ACME_RES_DIR], acme_header_cb, acme_write_cb,
+		 server->ca_cert);
 
 	/* Wait for response */
 	//TODO timeout

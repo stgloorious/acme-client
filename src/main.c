@@ -156,6 +156,7 @@ int main(int argc, char **argv)
 		if (ret == -1) {
 			int_shutdown = 1;
 			sleep(2);
+			pthread_join(http_chal_thr, &http_chal_thr_result);
 			goto fail;
 		}
 
