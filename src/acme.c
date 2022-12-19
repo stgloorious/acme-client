@@ -44,16 +44,11 @@ extern uint8_t verbose;
 extern volatile sig_atomic_t int_shutdown;
 
 char *acme_nonce = NULL;
-char acme_location[256];
-char acme_kid[256];
-char acme_finalize_url[512];
-char acme_cert[128];
-char acme_cert_chain[8192] = "";
+char *acme_location;
+char *acme_kid;
+char *acme_cert_chain;
 char acme_root_cert[2048];
 char acme_thumbprint[] = "kIObNDHaCoT9fXlDfWeLArEgfRon9f52a2DGE3SO4sM";
-
-char acme_dns_token[512];
-char acme_dns_digest[512];
 
 struct string_node *acme_authz_list;
 struct string_node *acme_chal_url_list;
@@ -242,6 +237,7 @@ int8_t acme_fsm_cert(struct acme_account *client, struct acme_server *server,
 		if (verbose)
 			printf("Certificate is ready.\n");
 		acme_get_cert(client, server);
+		acme_cert_chain = malloc(strlen(acme_srv_response) + 1);
 		strcpy(acme_cert_chain, acme_srv_response);
 		free(acme_srv_response);
 		acme_srv_response = NULL;
@@ -256,6 +252,7 @@ int8_t acme_fsm_cert(struct acme_account *client, struct acme_server *server,
 		fprintf(fd, "%s", acme_cert_chain);
 		fclose(fd);
 		printf("Certificate saved to cert.crt\n");
+		free(acme_cert_chain);
 		return 1;
 		break;
 	default:
@@ -271,6 +268,8 @@ size_t acme_header_cb(char *buf, size_t size, size_t nitems, void *packet_info)
          * location will contain the url that points to 
          * that account object */
 	if (!strncmp("Location", buf, 8)) {
+		/* this is way to much memory but it sure is enough */
+		acme_location = malloc(size * nitems);
 		strcpy(acme_location, buf + 10);
 		acme_location[strlen(acme_location) - 2] = '\0';
 	}
@@ -415,6 +414,7 @@ int8_t acme_new_acc(struct acme_account *client, struct acme_server *server)
 			       status->valuestring);
 			return -1;
 		}
+		acme_kid = malloc(strlen(acme_location + 1));
 		strcpy(acme_kid, acme_location);
 		if (verbose) {
 			printf("Account %s is valid\n", acme_kid);
@@ -816,28 +816,12 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 char *acme_get_token(char *url)
 {
 	char *token = malloc(256);
-	//printf("Replying to url %s with token ", url);
 	strcpy(token, url + strlen("/.well-known/acme-challenge/"));
 	strcpy(token + strlen(token), ".");
 	strcpy(token + strlen(token), acme_thumbprint);
-	//printf("%s\n", token);
+	return token;
+}
 
-	return token;
-}
-char *acme_get_token_dns()
-{
-	char *token = malloc(512);
-	char *digest = malloc(32);
-	strcpy(token, acme_dns_token);
-	printf("Using token %s\n", token);
-	strcpy(token + strlen(token), ".");
-	strcpy(token + strlen(token), acme_thumbprint);
-	SHA256((const unsigned char *)token, strlen(token),
-	       (unsigned char *)digest);
-	base64url((uint8_t *)digest, token, 32, 512);
-	printf("DNS token: *%s* at %p\n", token, token);
-	return token;
-}
 int8_t acme_authorize(struct acme_account *client, struct acme_server *server,
 		      enum acme_chal_type method)
 {
@@ -1022,8 +1006,6 @@ int8_t acme_get_order_status(struct acme_account *client,
 	cJSON *certificate =
 		cJSON_GetObjectItemCaseSensitive(srv_resp, "certificate");
 
-	printf("%s\n", acme_srv_response);
-
 	free(acme_srv_response);
 	acme_srv_response = NULL;
 
@@ -1107,57 +1089,6 @@ int8_t acme_get_cert(struct acme_account *client, struct acme_server *server)
 	if (status != NULL) {
 		return -1;
 	}
-	return 0;
-}
-
-int8_t acme_revoke_cert(struct acme_account *client, struct acme_server *server,
-			char *certfile)
-{
-	char signature[4096] = { 0 };
-	char post[16384] = { 0 };
-
-	struct acme_header hdr;
-	hdr.alg = "ES256";
-	hdr.kid = acme_kid;
-	hdr.nonce = acme_nonce;
-	hdr.url = server->resources[ACME_RES_REVOKE_CERT];
-	char *header = acme_write_header(&hdr);
-
-	char payload[4096] = { 0 };
-	strcpy(payload, "{\"certificate\":\"");
-	char pem_cert[2048];
-	FILE *cfile;
-	cfile = fopen(certfile, "r");
-	assert(cfile != NULL);
-	int len = fread(pem_cert, sizeof(pem_cert), sizeof(char), cfile);
-	assert(len > 0);
-	fclose(cfile);
-
-	crypt_strip_cert(pem_cert);
-	b64_normal2url(pem_cert);
-	strcpy(payload + strlen(payload), pem_cert);
-	strcpy(payload + strlen(payload), "\"}");
-	printf("cert:\n%s\n", payload);
-
-	char msg[8192];
-	char header64[512];
-	base64url((uint8_t *)header, header64, strlen(header), sizeof(msg));
-
-	char payload64[4096];
-	base64url((uint8_t *)payload, payload64, strlen(payload), sizeof(msg));
-
-	sprintf(msg, "%s.%s", header64, payload64);
-	crypt_sign(msg, *(client->key), signature, sizeof(signature));
-
-	sprintf(post,
-		"{\"protected\":\"%s\",\"payload\":\"%s\","
-		"\"signature\":\"%s\"}",
-		header64, payload64, signature);
-
-	curl_post(server->resources[ACME_RES_REVOKE_CERT], post, acme_write_cb,
-		  NULL, NULL, server->ca_cert);
-	free(acme_srv_response);
-	acme_srv_response = NULL;
 	return 0;
 }
 
@@ -1279,6 +1210,7 @@ char *acme_write_header(struct acme_header *header)
 
 void acme_cleanup(struct acme_account *client)
 {
+	free(acme_kid);
 	if (acme_nonce != NULL) {
 		free(acme_nonce);
 	}
