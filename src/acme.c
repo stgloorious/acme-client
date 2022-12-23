@@ -414,8 +414,9 @@ int8_t acme_new_acc(struct acme_account *client, struct acme_server *server)
 			       status->valuestring);
 			return -1;
 		}
-		acme_kid = malloc(strlen(acme_location + 1));
+		acme_kid = malloc(strlen(acme_location) + 1);
 		strcpy(acme_kid, acme_location);
+		free(acme_location);
 		if (verbose) {
 			printf("Account %s is valid\n", acme_kid);
 		}
@@ -590,6 +591,7 @@ int8_t acme_new_order(struct acme_account *client, struct acme_server *server,
 	}
 	client->order->order_url = malloc(strlen(acme_location) + 1);
 	strcpy(client->order->order_url, acme_location);
+	free(acme_location);
 	cJSON_Delete(srv_resp);
 	free(acme_srv_response);
 	acme_srv_response = NULL;
@@ -958,6 +960,7 @@ int8_t acme_finalize(struct acme_account *client, struct acme_server *server,
 	cJSON *srv_resp = cJSON_Parse(acme_srv_response);
 	cJSON *status = cJSON_GetObjectItemCaseSensitive(srv_resp, "status");
 	if (!cJSON_IsString(status)) {
+		cJSON_Delete(srv_resp);
 		return -1;
 	}
 
@@ -1054,8 +1057,11 @@ int8_t acme_add_root_cert(char *ca_cert)
 		return -1;
 	}
 	p += strlen("-----END CERTIFICATE-----");
-	strcpy(p, "\n");
-	strcpy(p + 1, acme_root_cert);
+	uint16_t len = (p - acme_cert_chain);
+	acme_cert_chain =
+		realloc(acme_cert_chain, len + strlen(acme_root_cert) + 2);
+	*(acme_cert_chain + len) = '\n';
+	strcpy(acme_cert_chain + len + 1, acme_root_cert);
 	return 0;
 }
 
