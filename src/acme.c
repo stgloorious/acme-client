@@ -187,6 +187,7 @@ int8_t acme_fsm_order(struct acme_account *client, struct acme_server *server,
 int8_t acme_fsm_validate(struct acme_account *client,
 			 struct acme_server *server, enum acme_chal_type method)
 {
+	static uint8_t auth_retry_count = 0;
 	switch (acme_fsm_validate_state) {
 	case ACME_STATE_AUTHORIZE:
 		acme_authorize(client, server, method);
@@ -196,11 +197,21 @@ int8_t acme_fsm_validate(struct acme_account *client,
 	case ACME_STATE_CHECK_AUTH:
 		if (verbose)
 			printf("Checking authorization state.\n");
-		if (acme_get_auth(client, server) == -1) {
+		switch (acme_get_auth(client, server)) {
+		case 0:
+			auth_retry_count++;
+			if (auth_retry_count == 5) {
+				acme_fsm_validate_state = ACME_STATE_AUTHORIZE;
+				printf("Authorization are still not valid. "
+				       "Trying again.\n");
+			}
+			break;
+		case -1:
 			printf("Authorization is not ready yet.\n");
 			sleep(1);
 			return 0;
 		}
+
 		if (client->authz_list == NULL) {
 			return 1;
 		}
