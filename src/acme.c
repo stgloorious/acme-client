@@ -269,7 +269,7 @@ size_t acme_header_cb(char *buf, size_t size, size_t nitems, void *packet_info)
          * that account object */
 	if (!strncmp("Location", buf, 8)) {
 		/* this is way to much memory but it sure is enough */
-		acme_location = malloc(size * nitems);
+		acme_location = realloc(acme_location, size * nitems);
 		strcpy(acme_location, buf + 10);
 		acme_location[strlen(acme_location) - 2] = '\0';
 	}
@@ -416,7 +416,6 @@ int8_t acme_new_acc(struct acme_account *client, struct acme_server *server)
 		}
 		acme_kid = malloc(strlen(acme_location) + 1);
 		strcpy(acme_kid, acme_location);
-		free(acme_location);
 		if (verbose) {
 			printf("Account %s is valid\n", acme_kid);
 		}
@@ -591,7 +590,6 @@ int8_t acme_new_order(struct acme_account *client, struct acme_server *server,
 	}
 	client->order->order_url = malloc(strlen(acme_location) + 1);
 	strcpy(client->order->order_url, acme_location);
-	free(acme_location);
 	cJSON_Delete(srv_resp);
 	free(acme_srv_response);
 	acme_srv_response = NULL;
@@ -1035,6 +1033,7 @@ int8_t acme_add_root_cert(char *ca_cert)
 	//TODO don't have this hardcoded
 	curl_get("https://pebble:15000/roots/0", acme_header_cb, acme_write_cb,
 		 ca_cert);
+
 	strcpy(acme_root_cert + strlen(acme_root_cert), acme_srv_response);
 	free(acme_srv_response);
 	acme_srv_response = NULL;
@@ -1217,6 +1216,7 @@ char *acme_write_header(struct acme_header *header)
 void acme_cleanup(struct acme_account *client)
 {
 	free(acme_kid);
+	free(acme_location);
 	if (acme_nonce != NULL) {
 		free(acme_nonce);
 	}
