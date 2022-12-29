@@ -105,22 +105,6 @@ int8_t crypt_read_key(char *keyfile, int16_t klen, EVP_PKEY **key)
 	return 0;
 }
 
-int8_t crypt_print_key(const EVP_PKEY *key)
-{
-	BIO *bf = BIO_new(BIO_s_mem());
-	if (EVP_PKEY_print_private(bf, key, 1, NULL) != 1) {
-		printf("Could not print private key.\n");
-		BIO_free(bf);
-		return -1;
-	} else {
-		char *out;
-		BIO_get_mem_data(bf, &out);
-		printf("Using key:\n%s\n", out);
-	}
-	BIO_free(bf);
-	return 0;
-}
-
 int8_t crypt_new_key(EVP_PKEY **key)
 {
 	crypt_read_key(acme_private_key, sizeof(acme_private_key), key);
@@ -309,26 +293,6 @@ int8_t crypt_strip_csr(char *csr_pem)
 	}
 	b64_[j] = '\0';
 	strcpy(csr_pem, b64_);
-	return 0;
-}
-int8_t crypt_strip_cert(char *cert_pem)
-{
-	char b64[4096];
-	memcpy(b64, cert_pem + strlen("-----BEGIN CERTIFICATE-----\n"),
-	       strlen(cert_pem));
-	char *end = strstr(b64, "-----END CERTIFICATE-----\n");
-	*(end) = '\0';
-
-	char b64_[4096];
-	int i = 0, j = 0;
-	while (b64[i] != '\0') {
-		if (b64[i] != '\n') {
-			b64_[j++] = b64[i];
-		}
-		i++;
-	}
-	b64_[j] = '\0';
-	strcpy(cert_pem, b64_);
 	return 0;
 }
 

@@ -30,8 +30,6 @@ int8_t crypt_new_csr(EVP_PKEY **key, X509_REQ **csr, char *csr_pem,
 
 int8_t crypt_strip_csr(char *csr_pem);
 
-int8_t crypt_strip_cert(char *cert_pem);
-
 /**
  * @param[in] key private key used to sign the token
  * @param[in] header
