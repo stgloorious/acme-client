@@ -19,6 +19,13 @@
  *
  */
 
+/** Parses the EC public key into X and Y values
+ * @param[in] key
+ * @param[out] x, malloc'd inside this function
+ * @param[out] y, malloc'd inside this function
+ */
+void crypt_get_xy(EVP_PKEY **key, uint8_t **x, uint8_t **y);
+
 int8_t crypt_new_key(EVP_PKEY **key);
 
 int8_t crpyt_read_key(char *keyfile, uint16_t klen, const EVP_PKEY *key);

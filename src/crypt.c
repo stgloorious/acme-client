@@ -39,7 +39,6 @@
 
 extern uint8_t verbose;
 
-/* TODO to be removed, these are testing keys only! */
 char acme_private_key[] =
 	""
 	"-----BEGIN PRIVATE KEY-----\n"
@@ -48,50 +47,31 @@ char acme_private_key[] =
 	"XL9J0xibTVILvHnPswqj7Ht/vja4K+a483zsyjtNrH/bS3iyRjcZd3xr\n"
 	"-----END PRIVATE KEY-----\n";
 
-char acme_public_key[] =
-	""
-	"-----BEGIN PUBLIC KEY-----\n"
-	"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEm+cd4SEHjP9p6S3xbVKhRyDC1cG+"
-	"3Puj8HJ9lNHngjy9VInV5MIe8It34GMIqW8RI/SQasoax6qQBHCmO1QtQA==\n"
-	"-----END PUBLIC KEY-----\n";
-
-char x[32] = { 0x50, 0x40, 0xa0, 0xcd, 0x26, 0x6c, 0xac, 0xf0, 0xff, 0x07, 0x57,
-	       0x6b, 0x9f, 0x70, 0x1a, 0x14, 0x79, 0x37, 0x06, 0xe8, 0xe1, 0x15,
-	       0x5c, 0xbf, 0x49, 0xd3, 0x18, 0x9b, 0x4d, 0x52, 0x0b, 0xbc };
-
-char y[32] = { 0x79, 0xcf, 0xb3, 0x0a, 0xa3, 0xec, 0x7b, 0x7f, 0xbe, 0x36, 0xb8,
-	       0x2b, 0xe6, 0xb8, 0xf3, 0x7c, 0xec, 0xca, 0x3b, 0x4d, 0xac, 0x7f,
-	       0xdb, 0x4b, 0x78, 0xb2, 0x46, 0x37, 0x19, 0x77, 0x7c, 0x6b };
-
-void crypt_parse_key()
+void crypt_get_xy(EVP_PKEY **pkey, uint8_t **x, uint8_t **y)
 {
-	/* needed to parse x and y values */
+	/* extract the public key from pkey which contains the 
+         * x and y values */
+	unsigned char *ppub;
+	int l = EVP_PKEY_get1_encoded_public_key(*pkey, &ppub);
+	assert(l == 65); // uncompressed format is always 65 bytes
 
-	/*BIGNUM* private_key = NULL;
-        EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_PRIV_KEY, &private_key);
-        printf("private key: %s\n", BN_bn2hex(private_key));*/
+	/* The first byte is a prefix:
+         * 0x04: uncompressed format (both x and y, each 32 bits)
+         * 0x02/3: compressed format (only x) */
 
-	/*size_t spubkeylen = 0;
-        EVP_PKEY_get_octet_string_param(pkey,OSSL_PKEY_PARAM_PUB_KEY,
-                        NULL, 0, &spubkeylen);
+	assert(*ppub == 0x04); //compressed format is not supported
 
-        unsigned char* spubkey = (unsigned char*)OPENSSL_malloc(spubkeylen);
-
-        EVP_PKEY_get_octet_string_param(pkey,OSSL_PKEY_PARAM_PUB_KEY,
-                        spubkey,spubkeylen,&spubkeylen); 
-
-        for (int i = 0; i<spubkeylen; i++){
-                printf("%02x ",*(spubkey+i));
-        }
-        printf("\n");
-
-        OPENSSL_free(spubkey);*/
+	/* ...followed by 32 byte x-value and 32 byte y-value */
+	*x = malloc(32);
+	*y = malloc(32);
+	memcpy(*x, ppub + 1, 32);
+	memcpy(*y, ppub + 33, 32);
 }
 
-int8_t crypt_read_key(char *keyfile, int16_t klen, EVP_PKEY **key)
+int8_t crypt_read_key(char *keyfile, EVP_PKEY **key)
 {
 	BIO *mem = BIO_new(BIO_s_mem());
-	BIO_write(mem, keyfile, klen);
+	BIO_write(mem, keyfile, strlen(keyfile));
 	assert(mem != NULL);
 
 	EVP_PKEY_free(*key);
@@ -107,7 +87,9 @@ int8_t crypt_read_key(char *keyfile, int16_t klen, EVP_PKEY **key)
 
 int8_t crypt_new_key(EVP_PKEY **key)
 {
-	crypt_read_key(acme_private_key, sizeof(acme_private_key), key);
+	//*key = EVP_EC_gen("prime256v1");
+	crypt_read_key(acme_private_key, key);
+
 	assert(*key != NULL);
 	return 0;
 }

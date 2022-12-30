@@ -371,16 +371,24 @@ int8_t acme_new_acc(struct acme_account *client, struct acme_server *server)
 		}
 	}
 
+	/* Get the key primitive values */
+	uint8_t *x_bin;
+	uint8_t *y_bin;
+	crypt_get_xy(client->key, &x_bin, &y_bin);
+
+	char x_str[44];
+	char y_str[44];
+	base64url(x_bin, x_str, 32, sizeof(x_str));
+	base64url(y_bin, y_str, 32, sizeof(y_str));
+
 	/* Header */
 	struct acme_header hdr;
 	hdr.alg = "ES256";
 	cJSON *jwk = cJSON_CreateObject();
 	cJSON *kty = cJSON_CreateString("EC");
 	cJSON *crv = cJSON_CreateString("P-256");
-	cJSON *x = cJSON_CreateString(
-		"UECgzSZsrPD_B1drn3AaFHk3BujhFVy_SdMYm01SC7w");
-	cJSON *y = cJSON_CreateString(
-		"ec-zCqPse3--Nrgr5rjzfOzKO02sf9tLeLJGNxl3fGs");
+	cJSON *x = cJSON_CreateString(x_str);
+	cJSON *y = cJSON_CreateString(y_str);
 	cJSON_AddItemToObject(jwk, "kty", kty);
 	cJSON_AddItemToObject(jwk, "crv", crv);
 	cJSON_AddItemToObject(jwk, "x", x);
