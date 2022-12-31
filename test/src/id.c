@@ -33,7 +33,7 @@ void test_id_list_create()
 	new_id->type = ACME_ID_DNS;
 	new_id->value = malloc(strlen("I am an identifier") + 1);
 	strcpy(new_id->value, "I am an identifier");
-	list = id_list_append(NULL, new_id);
+	list = id_list_append(list, new_id);
 
 	free(new_id->value);
 	free(new_id);

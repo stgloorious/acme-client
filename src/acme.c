@@ -969,6 +969,9 @@ int8_t acme_finalize(struct acme_account *client, struct acme_server *server,
 		;
 
 	cJSON *srv_resp = cJSON_Parse(acme_srv_response);
+	free(acme_srv_response);
+	acme_srv_response = NULL;
+
 	cJSON *status = cJSON_GetObjectItemCaseSensitive(srv_resp, "status");
 	if (!cJSON_IsString(status)) {
 		cJSON_Delete(srv_resp);
@@ -990,8 +993,6 @@ int8_t acme_finalize(struct acme_account *client, struct acme_server *server,
 	}
 
 	cJSON_Delete(srv_resp);
-	free(acme_srv_response);
-	acme_srv_response = NULL;
 
 	return ret;
 }
