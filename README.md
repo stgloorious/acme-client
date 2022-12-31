@@ -58,7 +58,7 @@ For the release build:
 - CMake >= 3.20
 
 #### Ubuntu 22.04 (Release build)
-    sudo apt install libcurl4-openssl-dev libcjson-dev openssl libssl-dev cmake
+    sudo apt-get install libcurl4-openssl-dev libcjson-dev openssl libssl-dev cmake
 
 Needed additionally for testing (debug build):
 - [Pebble](https://github.com/letsencrypt/pebble)
@@ -66,7 +66,7 @@ Needed additionally for testing (debug build):
 - Valgrind
     
 #### Ubuntu 22.04 (Debug build)
-    sudo apt install libcurl4-openssl-dev libcjson-dev openssl libssl-dev cmake valgrind pebble python
+    sudo apt-get install libcurl4-openssl-dev libcjson-dev openssl libssl-dev cmake valgrind pebble
         
 #### Using CMake
 Get the sources: 
