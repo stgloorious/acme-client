@@ -206,7 +206,7 @@ int8_t acme_check_auth(struct acme_account *client, struct acme_server *server);
 int8_t acme_authorize(struct acme_account *client, struct acme_server *server,
 		      enum acme_chal_type method);
 
-int8_t acme_add_root_cert(char *ca_cert);
+int8_t acme_add_root_cert(char *ca_cert, char *root_cert_url);
 
 int8_t acme_list_orders(struct acme_account *client,
 			struct acme_server *server);

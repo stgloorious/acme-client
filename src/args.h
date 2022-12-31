@@ -50,7 +50,6 @@ static struct argp_option options[] = {
 
 struct arguments {
 	char *dir_url;
-	char *record;
 	char *port;
 	char *server_cert;
 	char *account_key;
@@ -66,9 +65,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
 	switch (key) {
 	case 'u':
 		arguments->dir_url = arg;
-		break;
-	case 'r':
-		arguments->record = arg;
 		break;
 	case 'd':
 		arguments->domain_list =

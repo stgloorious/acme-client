@@ -55,7 +55,6 @@ int main(int argc, char **argv)
 	struct arguments arguments;
 
 	arguments.dir_url = "https://acme-v02.api.letsencrypt.org/directory";
-	arguments.record = "127.0.0.1";
 	arguments.domain_list = NULL;
 	arguments.ndomain = 0;
 	arguments.port = "80";
@@ -70,25 +69,6 @@ int main(int argc, char **argv)
 	}
 	verbose = arguments.verbose;
 	if (verbose) {
-#ifdef CONFIG_PRINT_ARGS
-		printf("Given command line options:\n");
-		printf("ndomain = %i\n", arguments.ndomain);
-		struct string_node *domains =
-			string_list_copy(arguments.domain_list);
-		for (int i = 0; i < arguments.ndomain; i++) {
-			char buf[256];
-			domains =
-				string_list_pop_back(domains, buf, sizeof(buf));
-			printf("DOMAIN = %s\n", buf);
-		}
-		string_list_delete(domains);
-		printf("DIR_URL = %s\n", arguments.dir_url);
-		printf("record = %s\n", arguments.record);
-		printf("port = %s\n", arguments.port);
-		printf("ca_cert = %s\n", arguments.server_cert);
-		printf("tos_agree = %i\n", arguments.tos_agree);
-		printf("verbose = %i\n\n", arguments.verbose);
-#endif
 		printf("Using OpenSSL version: %s\n", OPENSSL_VERSION_TEXT);
 	}
 
@@ -158,7 +138,7 @@ int main(int argc, char **argv)
 		pthread_t http_chal_thr;
 		void *http_chal_thr_result;
 		struct http_chal_args cargs = { atoi(arguments.port),
-						arguments.record };
+						"0.0.0.0" };
 		pthread_create(&http_chal_thr, NULL, http_chal_server, &cargs);
 		printf("HTTP challenge server started on port %i\n",
 		       cargs.port);

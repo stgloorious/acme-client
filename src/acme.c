@@ -48,7 +48,6 @@ char *acme_location = NULL;
 char *acme_kid = NULL;
 char *acme_cert_chain = NULL;
 char *acme_thumbprint = NULL;
-char acme_root_cert[2048];
 
 struct string_node *acme_authz_list;
 struct string_node *acme_chal_url_list;
@@ -252,18 +251,6 @@ int8_t acme_fsm_cert(struct acme_account *client, struct acme_server *server,
 		strcpy(acme_cert_chain, acme_srv_response);
 		free(acme_srv_response);
 		acme_srv_response = NULL;
-		printf("%p: %s\n", acme_cert_chain, acme_cert_chain);
-		if (acme_add_root_cert(server->ca_cert)) {
-			/* The received certificate is malformed.
-                         * Discard what we have got so far and try 
-                         * again */
-			free(acme_cert_chain);
-			acme_cert_chain = NULL;
-			acme_root_cert[0] = '\0';
-			return 0;
-		}
-
-		sleep(1);
 		FILE *fd;
 		fd = fopen("cert.crt", "w");
 		fprintf(fd, "%s", acme_cert_chain);
@@ -1080,44 +1067,6 @@ int8_t acme_get_order_status(struct acme_account *client,
 		return 1;
 	}
 	cJSON_Delete(srv_resp);
-	return 0;
-}
-
-int8_t acme_add_root_cert(char *ca_cert)
-{
-	/* pebble serves its root cert on this url */
-	//TODO don't have this hardcoded
-	curl_get("https://pebble:15000/roots/0", acme_header_cb, acme_write_cb,
-		 ca_cert);
-
-	strcpy(acme_root_cert + strlen(acme_root_cert), acme_srv_response);
-	free(acme_srv_response);
-	acme_srv_response = NULL;
-
-	/* append the root cert to the exisiting cert chain */
-	printf("acme_cert_chain at %p\n", acme_cert_chain);
-	char *p = strstr(acme_cert_chain, "-----END CERTIFICATE-----");
-	if (p == NULL) {
-		fprintf(stderr,
-			"Error parsing certificate chain: "
-			"did not receive PEM certificate:\n%s\n",
-			acme_cert_chain);
-		return -1;
-	}
-	p += strlen("-----END CERTIFICATE-----");
-	p = strstr(p, "-----END CERTIFICATE-----");
-	if (p == NULL) {
-		fprintf(stderr, "Error parsing certificate chain: "
-				"only one PEM certificate in received "
-				"chain\n");
-		return -1;
-	}
-	p += strlen("-----END CERTIFICATE-----");
-	uint16_t len = (p - acme_cert_chain);
-	acme_cert_chain =
-		realloc(acme_cert_chain, len + strlen(acme_root_cert) + 2);
-	*(acme_cert_chain + len) = '\n';
-	strcpy(acme_cert_chain + len + 1, acme_root_cert);
 	return 0;
 }
 
