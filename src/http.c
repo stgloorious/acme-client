@@ -51,40 +51,6 @@ void *http_chal_server(void *port)
 	return NULL;
 }
 
-int8_t http_respond(struct http_msg *msg, int *con)
-{
-	/* status line */
-	char response[256];
-	assert(msg->version == HTTP11);
-	strcpy(response, "HTTP/1.1");
-	uint8_t len = strlen(response);
-	switch (msg->status) {
-	case HTTP_STATUS_200_OK:
-		strcpy(response + len, " 200 OK\r\n");
-		break;
-	default:
-		printf("Unknown status code!\n");
-		return -1;
-	}
-	len = strlen(response);
-
-	/* date header */
-	strcpy(response + len, "Date: ");
-	time_t now = time(0);
-	struct tm tm = *gmtime(&now);
-	strftime(response + len + 6, sizeof(response),
-		 "%a, %d %b %Y %H:%M:%S %Z", &tm);
-
-	len = strlen(response);
-	strcpy(response + len, "\r\n"
-			       "Server: acme-client\r\n"
-			       "Connection: Closed\r\n"
-			       "Content-Length: 0\r\n\r\n");
-	printf("Sending response\n%s\n", response);
-	send(*con, response, strlen(response), 0);
-	shutdown(*con, SHUT_RDWR);
-	return 0;
-}
 int8_t http_chal_respond(struct http_msg *msg, char *token, int *con)
 {
 	/* status line */
