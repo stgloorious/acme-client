@@ -39,14 +39,6 @@
 
 extern uint8_t verbose;
 
-char acme_private_key[] =
-	""
-	"-----BEGIN PRIVATE KEY-----\n"
-	"MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgcuHoLuK1lSj2AYhP"
-	"2TD4V6xgmKWG8ckVXkag0gvgmL2hRANCAARQQKDNJmys8P8HV2ufcBoUeTcG6OEV"
-	"XL9J0xibTVILvHnPswqj7Ht/vja4K+a483zsyjtNrH/bS3iyRjcZd3xr\n"
-	"-----END PRIVATE KEY-----\n";
-
 void crypt_get_xy(EVP_PKEY **pkey, uint8_t **x, uint8_t **y)
 {
 	/* extract the public key from pkey which contains the 
@@ -66,6 +58,7 @@ void crypt_get_xy(EVP_PKEY **pkey, uint8_t **x, uint8_t **y)
 	*y = malloc(32);
 	memcpy(*x, ppub + 1, 32);
 	memcpy(*y, ppub + 33, 32);
+	free(ppub);
 }
 
 int8_t crypt_read_key(char *keyfile, EVP_PKEY **key)
@@ -87,8 +80,7 @@ int8_t crypt_read_key(char *keyfile, EVP_PKEY **key)
 
 int8_t crypt_new_key(EVP_PKEY **key)
 {
-	//*key = EVP_EC_gen("prime256v1");
-	crypt_read_key(acme_private_key, key);
+	*key = EVP_EC_gen("prime256v1");
 
 	assert(*key != NULL);
 	return 0;

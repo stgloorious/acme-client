@@ -44,11 +44,11 @@ extern uint8_t verbose;
 extern volatile sig_atomic_t int_shutdown;
 
 char *acme_nonce = NULL;
-char *acme_location;
-char *acme_kid;
-char *acme_cert_chain;
+char *acme_location = NULL;
+char *acme_kid = NULL;
+char *acme_cert_chain = NULL;
+char *acme_thumbprint = NULL;
 char acme_root_cert[2048];
-char acme_thumbprint[] = "kIObNDHaCoT9fXlDfWeLArEgfRon9f52a2DGE3SO4sM";
 
 struct string_node *acme_authz_list;
 struct string_node *acme_chal_url_list;
@@ -381,6 +381,9 @@ int8_t acme_new_acc(struct acme_account *client, struct acme_server *server)
 	base64url(x_bin, x_str, 32, sizeof(x_str));
 	base64url(y_bin, y_str, 32, sizeof(y_str));
 
+	free(x_bin);
+	free(y_bin);
+
 	/* Header */
 	struct acme_header hdr;
 	hdr.alg = "ES256";
@@ -389,14 +392,41 @@ int8_t acme_new_acc(struct acme_account *client, struct acme_server *server)
 	cJSON *crv = cJSON_CreateString("P-256");
 	cJSON *x = cJSON_CreateString(x_str);
 	cJSON *y = cJSON_CreateString(y_str);
-	cJSON_AddItemToObject(jwk, "kty", kty);
+
+	/* The order of the elements is alphabetical,
+         * so the print function outputs them correctly 
+         * for the SHA256 hash function */
+	/* We assume that cJSON prints the elements in
+         * the order they were added, which is arguably
+         * not that good */
 	cJSON_AddItemToObject(jwk, "crv", crv);
+	cJSON_AddItemToObject(jwk, "kty", kty);
 	cJSON_AddItemToObject(jwk, "x", x);
 	cJSON_AddItemToObject(jwk, "y", y);
 	hdr.jwk = cJSON_Print(jwk);
 	hdr.nonce = acme_nonce;
 	hdr.url = server->resources[ACME_RES_NEW_ACC];
 	hdr.kid = NULL;
+
+	/* strip whitespace from JSON printout */
+	char *stripped_jwk = malloc(strlen(hdr.jwk));
+	uint16_t j = 0;
+	for (uint16_t i = 0; i < strlen(hdr.jwk); i++) {
+		if (hdr.jwk[i] != ' ' && hdr.jwk[i] != '\n' &&
+		    hdr.jwk[i] != '\t') {
+			stripped_jwk[j++] = hdr.jwk[i];
+		}
+	}
+	stripped_jwk[j] = '\0';
+	uint8_t hash[SHA256_DIGEST_LENGTH];
+	SHA256((uint8_t *)stripped_jwk, strlen(stripped_jwk), hash);
+	char hash_str[SHA256_DIGEST_LENGTH * 2];
+	base64url(hash, hash_str, SHA256_DIGEST_LENGTH, sizeof(hash_str));
+	free(stripped_jwk);
+
+	/* The key thumprint is used later to reply to challenges */
+	acme_thumbprint = realloc(acme_thumbprint, strlen(hash_str) + 1);
+	strcpy(acme_thumbprint, hash_str);
 	cJSON_Delete(jwk);
 
 	/* Assemble the JWT */
@@ -1236,6 +1266,7 @@ void acme_cleanup(struct acme_account *client)
 {
 	free(acme_kid);
 	free(acme_location);
+	free(acme_thumbprint);
 	if (acme_nonce != NULL) {
 		free(acme_nonce);
 	}
