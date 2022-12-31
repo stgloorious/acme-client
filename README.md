@@ -17,17 +17,19 @@ ACME (Automatic Certificate Management Environment) is a protocol specified by [
     Usage: acme-client [OPTION...]
     Simple ACME client written in C
 
-    -c, --cert=CERTFILE        CA certificate file used by the ACME server
-    -d, --domain=DOMAIN        Domain for which to request the certificate. Can
-                             be used multiple times.
-    -p, --port=PORT            Port number the HTTP server should bind to
-    -u, --dir=DIR_URL          Directory URL of the ACME server that should be
-                             used.
-    -v, --verbose              Produce verbose output
-    -y, --agree-tos            Always agree to the terms of service
-    -?, --help                 Give this help list
-      --usage                Give a short usage message
-    -V, --version              Print program version
+      -a, --account-key=KEYFILE  Account private key
+      -c, --cert=CERTFILE        CA certificate file used by the ACME server
+      -d, --domain=DOMAIN        Domain for which to request the certificate. Can
+                                 be used multiple times.
+      -p, --port=PORT            Port number the HTTP server should bind to
+      -u, --dir=DIR_URL          Directory URL of the ACME server that should be
+                                 used.
+      -v, --verbose              Produce verbose output
+      -y, --agree-tos            Always agree to the terms of service
+      -?, --help                 Give this help list
+          --usage                Give a short usage message
+      -V, --version              Print program version
+
 
 ### Examples
 #### Obtaining a Let's Encrypt certificate
