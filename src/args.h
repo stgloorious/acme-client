@@ -44,6 +44,7 @@ static struct argp_option options[] = {
 	{ "agree-tos", 'y', 0, OPTION_ARG_OPTIONAL,
 	  "Always agree to the terms of service", 0 },
 	{ "verbose", 'v', 0, 0, "Produce verbose output", 0 },
+	{ "account-key", 'a', "KEYFILE", 0, "Account private key", 0 },
 	{ 0 }
 };
 
@@ -52,6 +53,7 @@ struct arguments {
 	char *record;
 	char *port;
 	char *server_cert;
+	char *account_key;
 	struct string_node *domain_list;
 	int ndomain;
 	int tos_agree;
@@ -85,6 +87,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
 		break;
 	case 'c':
 		arguments->server_cert = arg;
+		break;
+	case 'a':
+		arguments->account_key = arg;
 		break;
 	case ARGP_KEY_NO_ARGS:
 		if (*arguments->dir_url == '\0') {

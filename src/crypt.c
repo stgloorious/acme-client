@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+#include <sys/stat.h>
 #include <openssl/conf.h>
 #include <openssl/evp.h>
 #include <openssl/err.h>
@@ -61,29 +62,48 @@ void crypt_get_xy(EVP_PKEY **pkey, uint8_t **x, uint8_t **y)
 	free(ppub);
 }
 
-int8_t crypt_read_key(char *keyfile, EVP_PKEY **key)
+int8_t crypt_read_key(EVP_PKEY **key, char *infile)
 {
-	BIO *mem = BIO_new(BIO_s_mem());
-	BIO_write(mem, keyfile, strlen(keyfile));
-	assert(mem != NULL);
-
-	EVP_PKEY_free(*key);
-	*key = PEM_read_bio_PrivateKey(mem, NULL, NULL, NULL);
-	if (*key == NULL) {
-		printf("Private key parsing error: must be in PEM format.\n");
-		BIO_free(mem);
+	FILE *f = fopen(infile, "r");
+	if (f == NULL) {
+		fprintf(stderr, "Error opening file %s: %s", infile,
+			strerror(errno));
 		return -1;
 	}
-	BIO_free(mem);
+	*key = PEM_read_PrivateKey(f, key, NULL, NULL);
+	if (*key == NULL) {
+		fprintf(stderr, "Error reading key from file %s", infile);
+		fclose(f);
+		return -1;
+	}
+	fclose(f);
+	return 0;
+}
+
+int8_t crypt_write_key(EVP_PKEY *key, char *outfile)
+{
+	umask(~(S_IRUSR | S_IWUSR)); //set to 0600 permissions
+	FILE *f = fopen(outfile, "w");
+	if (f == NULL) {
+		fprintf(stderr, "Error opening file %s: %s", outfile,
+			strerror(errno));
+		return -1;
+	}
+	/* Save unencrypted */
+	if (!PEM_write_PrivateKey(f, key, NULL, NULL, 0, NULL, NULL)) {
+		fprintf(stderr, "Error writing key to file.");
+		fclose(f);
+		return -1;
+	}
+	fclose(f);
 	return 0;
 }
 
 int8_t crypt_new_key(EVP_PKEY **key)
 {
+	/* Currently, only prime256v1 curve is supported */
 	*key = EVP_EC_gen("prime256v1");
-
-	assert(*key != NULL);
-	return 0;
+	return -(*key == NULL);
 }
 
 int8_t crypt_sign(const char *msg, EVP_PKEY *key, char *signature,

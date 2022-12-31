@@ -28,7 +28,9 @@ void crypt_get_xy(EVP_PKEY **key, uint8_t **x, uint8_t **y);
 
 int8_t crypt_new_key(EVP_PKEY **key);
 
-int8_t crpyt_read_key(char *keyfile, uint16_t klen, const EVP_PKEY *key);
+int8_t crypt_read_key(EVP_PKEY **key, char *infile);
+
+int8_t crypt_write_key(EVP_PKEY *key, char *outfile);
 
 int8_t crypt_sign(const char *msg, EVP_PKEY *key, char *token, uint16_t tlen);
 

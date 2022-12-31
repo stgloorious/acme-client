@@ -60,6 +60,7 @@ int main(int argc, char **argv)
 	arguments.ndomain = 0;
 	arguments.port = "80";
 	arguments.server_cert = NULL;
+	arguments.account_key = NULL;
 	arguments.verbose = 0;
 	arguments.tos_agree = 0;
 
@@ -94,7 +95,22 @@ int main(int argc, char **argv)
 	/* An account represents the client */
 	struct acme_account client;
 	EVP_PKEY *key = NULL;
-	crypt_new_key(&key);
+
+	if (arguments.account_key) {
+		if (crypt_read_key(&key, arguments.account_key)) {
+			return -1;
+		}
+	} else {
+		char keyfile[] = "account.pem";
+		printf("No account key provided, creating a new one at \"%s\"\n",
+		       keyfile);
+		if (crypt_new_key(&key)) {
+			return -1;
+		}
+		if (crypt_write_key(key, keyfile)) {
+			return -1;
+		}
+	}
 	client.key = &key;
 	client.order_list = NULL;
 	client.status = ACME_STATUS_UNKNOWN;
