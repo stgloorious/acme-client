@@ -212,7 +212,6 @@ int8_t crypt_new_csr(EVP_PKEY **key, X509_REQ **csr, char *csr_pem,
 	if (verbose)
 		printf("Generating new RSA key with 2048 bits.\n");
 	*key = EVP_RSA_gen(2048);
-	//crypt_print_key(*key);
 
 	if (verbose)
 		printf("Generating CSR.\n");
