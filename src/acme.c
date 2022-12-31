@@ -252,8 +252,14 @@ int8_t acme_fsm_cert(struct acme_account *client, struct acme_server *server,
 		strcpy(acme_cert_chain, acme_srv_response);
 		free(acme_srv_response);
 		acme_srv_response = NULL;
-		acme_fsm_validate_state = ACME_STATE_GET_ACC;
+		printf("%p: %s\n", acme_cert_chain, acme_cert_chain);
 		if (acme_add_root_cert(server->ca_cert)) {
+			/* The received certificate is malformed.
+                         * Discard what we have got so far and try 
+                         * again */
+			free(acme_cert_chain);
+			acme_cert_chain = NULL;
+			acme_root_cert[0] = '\0';
 			return 0;
 		}
 
@@ -263,6 +269,7 @@ int8_t acme_fsm_cert(struct acme_account *client, struct acme_server *server,
 		fprintf(fd, "%s", acme_cert_chain);
 		fclose(fd);
 		printf("Certificate saved to cert.crt\n");
+		acme_fsm_validate_state = ACME_STATE_GET_ACC;
 		free(acme_cert_chain);
 		return 1;
 		break;
@@ -1088,6 +1095,7 @@ int8_t acme_add_root_cert(char *ca_cert)
 	acme_srv_response = NULL;
 
 	/* append the root cert to the exisiting cert chain */
+	printf("acme_cert_chain at %p\n", acme_cert_chain);
 	char *p = strstr(acme_cert_chain, "-----END CERTIFICATE-----");
 	if (p == NULL) {
 		fprintf(stderr,
@@ -1141,8 +1149,10 @@ int8_t acme_get_cert(struct acme_account *client, struct acme_server *server)
 	cJSON *status = cJSON_GetObjectItemCaseSensitive(srv_resp, "status");
 
 	if (status != NULL) {
+		cJSON_Delete(srv_resp);
 		return -1;
 	}
+	cJSON_Delete(srv_resp);
 	return 0;
 }
 
