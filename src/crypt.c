@@ -37,6 +37,7 @@
 #include "string.h"
 #include "crypt.h"
 #include "b64.h"
+#include "err.h"
 
 extern uint8_t verbose;
 
@@ -66,13 +67,12 @@ int8_t crypt_read_key(EVP_PKEY **key, char *infile)
 {
 	FILE *f = fopen(infile, "r");
 	if (f == NULL) {
-		fprintf(stderr, "Error opening file %s: %s", infile,
-			strerror(errno));
+		ERROR("Error opening file %s: %s", infile, strerror(errno));
 		return -1;
 	}
 	*key = PEM_read_PrivateKey(f, key, NULL, NULL);
 	if (*key == NULL) {
-		fprintf(stderr, "Error reading key from file %s", infile);
+		ERROR("Error reading key from file %s", infile);
 		fclose(f);
 		return -1;
 	}
@@ -85,13 +85,12 @@ int8_t crypt_write_key(EVP_PKEY *key, char *outfile)
 	umask(~(S_IRUSR | S_IWUSR)); //set to 0600 permissions
 	FILE *f = fopen(outfile, "w");
 	if (f == NULL) {
-		fprintf(stderr, "Error opening file %s: %s", outfile,
-			strerror(errno));
+		ERROR("Error opening file %s: %s", outfile, strerror(errno));
 		return -1;
 	}
 	/* Save unencrypted */
 	if (!PEM_write_PrivateKey(f, key, NULL, NULL, 0, NULL, NULL)) {
-		fprintf(stderr, "Error writing key to file.");
+		ERROR("Error writing key to file.");
 		fclose(f);
 		return -1;
 	}
@@ -114,13 +113,13 @@ int8_t crypt_sign(const char *msg, EVP_PKEY *key, char *signature,
 	assert(ctx != NULL);
 
 	if (EVP_DigestSignInit(ctx, NULL, EVP_sha256(), NULL, key) != 1) {
-		printf("Could not initalise signing context.\n");
+		ERROR("Could not initalise signing context.\n");
 		EVP_MD_CTX_destroy(ctx);
 		return -1;
 	}
 
 	if (EVP_DigestSignUpdate(ctx, msg, strlen(msg)) != 1) {
-		printf("Could not update signing context.\n");
+		ERROR("Could not update signing context.\n");
 		EVP_MD_CTX_destroy(ctx);
 		return -1;
 	}
@@ -129,7 +128,7 @@ int8_t crypt_sign(const char *msg, EVP_PKEY *key, char *signature,
          * to get the length */
 	size_t der_slen;
 	if (EVP_DigestSignFinal(ctx, NULL, &der_slen) != 1) {
-		printf("Signing failed.\n");
+		ERROR("Signing failed.\n");
 		EVP_MD_CTX_destroy(ctx);
 		return -1;
 	}
@@ -138,7 +137,7 @@ int8_t crypt_sign(const char *msg, EVP_PKEY *key, char *signature,
 	uint8_t *der_sig = malloc(der_slen);
 	assert(der_sig != NULL);
 	if (EVP_DigestSignFinal(ctx, der_sig, &der_slen) != 1) {
-		printf("Signing failed.\n");
+		ERROR("Signing failed.\n");
 		EVP_MD_CTX_destroy(ctx);
 		return -1;
 	}
@@ -164,8 +163,6 @@ int8_t crypt_sign(const char *msg, EVP_PKEY *key, char *signature,
 	char *r = BN_bn2hex(ec_sig_r);
 	char *s = BN_bn2hex(ec_sig_s);
 
-	//printf("R: %s\nS: %s\n", r, s);
-
 	/* we only need the copied R and S values */
 	ECDSA_SIG_free(ec_sig);
 	free(der_sig_cp);
@@ -188,7 +185,6 @@ int8_t crypt_sign(const char *msg, EVP_PKEY *key, char *signature,
 		hex[0] = cat_sig[2 * i];
 		hex[1] = cat_sig[2 * i + 1];
 		//TODO fix
-		//printf("%c%c", hex[0], hex[1]);
 		cat_sig_b[i] = strtol(hex, NULL, 16);
 		//ptr += 2;
 	}
@@ -199,8 +195,6 @@ int8_t crypt_sign(const char *msg, EVP_PKEY *key, char *signature,
 	char sig[4096] = { 0 };
 	base64url(cat_sig_b, sig, 64, sizeof(sig));
 
-	//printf("Signature: %s\n", sig);
-
 	sprintf(signature, "%s", sig);
 	return 0;
 }
@@ -209,18 +203,16 @@ int8_t crypt_new_csr(EVP_PKEY **key, X509_REQ **csr, char *csr_pem,
 		     uint16_t len, struct string_node *domain_list)
 {
 	//TODO error handling
-	if (verbose)
-		printf("Generating new RSA key with 2048 bits.\n");
+	DEBUG("Generating new RSA key with 2048 bits.\n");
 	*key = EVP_RSA_gen(2048);
 
-	if (verbose)
-		printf("Generating CSR.\n");
+	DEBUG("Generating CSR.\n");
 	*csr = X509_REQ_new();
 	if (*csr == NULL) {
-		printf("Could not generate CSR.\n");
+		ERROR("Could not generate CSR.\n");
 	}
 	if (X509_REQ_set_pubkey(*csr, *key) != 1) {
-		printf("Could not set public key in CSR.\n");
+		ERROR("Could not set public key in CSR.\n");
 	}
 
 	struct string_node *domains = string_list_copy(domain_list);
@@ -256,7 +248,7 @@ int8_t crypt_new_csr(EVP_PKEY **key, X509_REQ **csr, char *csr_pem,
 	X509_REQ_add_extensions(*csr, exts);
 
 	if (X509_REQ_sign(*csr, *key, EVP_sha256()) == 0) {
-		printf("Could not sign CSR.\n");
+		ERROR("Could not sign CSR.\n");
 	}
 
 	BIO *buf = BIO_new(BIO_s_mem());

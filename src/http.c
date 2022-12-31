@@ -38,7 +38,9 @@
 #include "acme.h"
 #include "string.h"
 #include "http.h"
+#include "err.h"
 
+extern uint8_t verbose;
 extern volatile sig_atomic_t int_shutdown;
 
 const char *http_method_strings[] = { "GET",	"HEAD",	   "POST",    "PUT",
@@ -63,7 +65,7 @@ int8_t http_chal_respond(struct http_msg *msg, char *token, int *con)
 		strcpy(response + len, " 200 OK\r\n");
 		break;
 	default:
-		printf("Unknown status code!\n");
+		DEBUG("Unknown status code!\n");
 		return -1;
 	}
 	len = strlen(response);
@@ -82,7 +84,6 @@ int8_t http_chal_respond(struct http_msg *msg, char *token, int *con)
 	       "Content-Type: application/octet-stream\r\n\r\n");
 	len = strlen(response);
 	strcpy(response + len, token);
-	//printf("Sending response\n%s\n", response);
 	send(*con, response, strlen(response), 0);
 	shutdown(*con, SHUT_RDWR);
 	return 0;
@@ -108,18 +109,16 @@ int8_t http_parse(char *buf, uint16_t len, struct http_msg *msg)
 			}
 		}
 		split = strtok(NULL, " ");
-		//printf("%s ", http_method_strings[msg->method]);
 	} else {
-		printf("HTTP parse error\n");
+		ERROR("HTTP parse error\n");
 		return -1;
 	}
 	if (split) {
 		msg->request_target = malloc(strlen(split) + 1);
 		strcpy(msg->request_target, split);
 		split = strtok(NULL, " ");
-		//printf(" %s ", msg->request_target);
 	} else {
-		printf("HTTP parse error\n");
+		ERROR("HTTP parse error\n");
 		return -1;
 	}
 	if (split) {
@@ -129,15 +128,13 @@ int8_t http_parse(char *buf, uint16_t len, struct http_msg *msg)
 			}
 		}
 		split = strtok(NULL, " ");
-		//if (msg->version == HTTP11)
-		//        printf(" %s\n", "HTTP/1.1");
 	} else {
-		printf("Unsupported HTTP version!\n");
+		ERROR("Unsupported HTTP version!\n");
 		return -1;
 		/* TODO: return HTTP 505 */
 	}
 	if (split) {
-		printf("HTTP parse error\n");
+		ERROR("HTTP parse error\n");
 		return -1;
 	}
 
@@ -158,7 +155,7 @@ int8_t http_chal_start(uint16_t port)
 		   sizeof(int));
 
 	if (bind(tcp_socket, (struct sockaddr *)&me, sizeof(me))) {
-		printf("Error: HTTP challenge server bind failed.\n");
+		ERROR("HTTP challenge server bind failed.\n");
 		close(tcp_socket);
 		exit(-1);
 		return -1;
@@ -171,9 +168,6 @@ int8_t http_chal_start(uint16_t port)
 	char buf[1024];
 	socklen_t addr_len = (socklen_t)sizeof(struct sockaddr_in);
 	int con = -1;
-	//char c[32];
-	//inet_ntop(AF_INET, ((struct sockaddr*)&other.sin_addr),
-	//        c, sizeof(c));
 
 	while (!int_shutdown) {
 		while (!int_shutdown && con < 1) {
@@ -181,17 +175,10 @@ int8_t http_chal_start(uint16_t port)
 				     &addr_len);
 		}
 		if (!int_shutdown) {
-			//printf("New connection accepted.\n");
 			int16_t rsize = recv(con, buf, sizeof(buf), 0);
-			//printf("%i",rsize);
-			if (rsize == 0) {
-				//printf("Client disconnected.\n");
-				//return -1;
-			} else if (rsize > 0) {
-				//acme_print_srv_response();
-				//printf("Read %i bytes:\n%s\n", rsize, buf);
+			if (rsize > 0) {
 				if (http_parse(buf, sizeof(buf), &msg)) {
-					printf("HTTP parsing failed.\n");
+					ERROR("HTTP parsing failed.\n");
 				} else {
 					struct http_msg response;
 					response.status = HTTP_STATUS_200_OK;
@@ -208,8 +195,8 @@ int8_t http_chal_start(uint16_t port)
 		}
 	}
 	if (close(tcp_socket)) {
-		printf("Could not close HTTP challenge socket\n");
+		ERROR("Could not close HTTP challenge socket\n");
 	}
-	printf("Terminated HTTP challenge server\n");
+	DEBUG("Terminated HTTP challenge server\n");
 	return 0;
 }

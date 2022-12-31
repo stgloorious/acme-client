@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include <curl/curl.h>
 #include "curl.h"
+#include "err.h"
 
 int8_t curl_post(char *url, char *post, void *write_cb, void *header_cb,
 		 char *headers, char *ca_cert)
@@ -62,14 +63,13 @@ int8_t curl_post(char *url, char *post, void *write_cb, void *header_cb,
 
 		res = curl_easy_perform(curl);
 		if (res != CURLE_OK) {
-			fprintf(stderr, "curl error: %s\n",
-				curl_easy_strerror(res));
+			ERROR("curl error: %s\n", curl_easy_strerror(res));
 			curl_easy_cleanup(curl);
 			curl_slist_free_all(slist1);
 			return -1;
 		}
 	} else {
-		printf("libcurl error.\n");
+		ERROR("libcurl error.\n");
 		curl_easy_cleanup(curl);
 		curl_slist_free_all(slist1);
 		return -1;
@@ -106,15 +106,14 @@ int8_t curl_get(char *url, void *header_cb, void *write_cb, char *ca_cert)
 
 		res = curl_easy_perform(curl);
 		if (res != CURLE_OK) {
-			fprintf(stderr, "curl error: %s\n",
-				curl_easy_strerror(res));
+			ERROR("curl error: %s\n", curl_easy_strerror(res));
 			curl_easy_cleanup(curl);
 			return -1;
 		}
 		uint64_t scode;
 		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &scode);
 		if ((scode < 200) || (scode >= 300)) {
-			fprintf(stderr, "curl error: status code %lu\n", scode);
+			ERROR("curl error: status code %lu\n", scode);
 			curl_easy_cleanup(curl);
 			return -1;
 		}

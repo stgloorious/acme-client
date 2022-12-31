@@ -39,9 +39,12 @@
 #include "acme.h"
 #include "b64.h"
 #include "crypt.h"
+#include "err.h"
 
+/* Global indicator whether in verbose mode */
 uint8_t verbose = 0;
 
+/* Global indicator whether we received a keyboard interrupt */
 volatile sig_atomic_t int_shutdown = 0;
 
 static void int_handler(int dummy)
@@ -51,9 +54,10 @@ static void int_handler(int dummy)
 
 int main(int argc, char **argv)
 {
-	signal(SIGINT, int_handler);
-	struct arguments arguments;
+	signal(SIGINT, int_handler); //register keyboard interrupt handler
 
+	/* Parse command-line arguments */
+	struct arguments arguments;
 	arguments.dir_url = "https://acme-v02.api.letsencrypt.org/directory";
 	arguments.domain_list = NULL;
 	arguments.ndomain = 0;
@@ -64,13 +68,11 @@ int main(int argc, char **argv)
 	arguments.tos_agree = 0;
 
 	if (argp_parse(&argp, argc, argv, 0, 0, &arguments)) {
-		fprintf(stderr, "Error parsing command-line arguments.\n");
+		ERROR("Error parsing command-line arguments.\n");
 		return EINVAL;
 	}
 	verbose = arguments.verbose;
-	if (verbose) {
-		printf("Using OpenSSL version: %s\n", OPENSSL_VERSION_TEXT);
-	}
+	DEBUG("Using OpenSSL version: %s\n", OPENSSL_VERSION_TEXT);
 
 	/* An account represents the client */
 	struct acme_account client;
@@ -82,7 +84,7 @@ int main(int argc, char **argv)
 		}
 	} else {
 		char keyfile[] = "account.pem";
-		printf("No account key provided, creating a new one at \"%s\"\n",
+		NOTICE("No account key provided, creating a new one at \"%s\"\n",
 		       keyfile);
 		if (crypt_new_key(&key)) {
 			return -1;
@@ -106,14 +108,14 @@ int main(int argc, char **argv)
 		goto fail;
 	}
 	if (acme_get_resources(server, arguments.tos_agree) != 0) {
-		fprintf(stderr, "Could not obtain ACME resource URLs.\n");
+		ERROR("Could not obtain ACME resource URLs.\n");
 		goto fail;
 	}
 
 	/* Request a new account, which is identified by our key */
 	uint8_t retry_count = 0;
 	while (acme_new_acc(&client, server)) {
-		fprintf(stderr, "Could not create account.\n");
+		ERROR("Could not create account.\n");
 		if (retry_count < 3) {
 			retry_count++;
 		} else {
@@ -132,7 +134,7 @@ int main(int argc, char **argv)
 	/* FSM returns 2 if all authorization are already validated */
 	if (ret == 1) {
 		//TODO add manual validation
-		printf("Performing automatic validation\n");
+		DEBUG("Performing automatic validation\n");
 
 		/* Start HTTP server used to validate challenges */
 		pthread_t http_chal_thr;
@@ -140,8 +142,7 @@ int main(int argc, char **argv)
 		struct http_chal_args cargs = { atoi(arguments.port),
 						"0.0.0.0" };
 		pthread_create(&http_chal_thr, NULL, http_chal_server, &cargs);
-		printf("HTTP challenge server started on port %i\n",
-		       cargs.port);
+		DEBUG("HTTP challenge server started on port %i\n", cargs.port);
 
 		/* At this point the challenges should be ready for the server
                  * to be seen */
@@ -163,7 +164,7 @@ int main(int argc, char **argv)
 		pthread_join(http_chal_thr, &http_chal_thr_result);
 		int_shutdown = 0;
 	}
-	printf("All domains were successfully verified.\n");
+	DEBUG("All domains were successfully verified.\n");
 
 	ret = 0;
 	while (ret == 0 && !int_shutdown) {

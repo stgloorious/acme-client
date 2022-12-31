@@ -39,6 +39,7 @@
 #include "b64.h"
 #include "curl.h"
 #include "types.h"
+#include "err.h"
 
 extern uint8_t verbose;
 extern volatile sig_atomic_t int_shutdown;
@@ -108,8 +109,8 @@ int8_t acme_server_add_cert(struct acme_server *server, char *ca_cert)
 		return 0;
 	}
 	if (access(ca_cert, R_OK)) {
-		fprintf(stderr, "Error reading certificate file \"%s\": %s\n",
-			ca_cert, strerror(errno));
+		ERROR("Error reading certificate file \"%s\": %s\n", ca_cert,
+		      strerror(errno));
 		return -1;
 	}
 	server->ca_cert = malloc(strlen(ca_cert) + 1);
@@ -149,32 +150,26 @@ int8_t acme_fsm_order(struct acme_account *client, struct acme_server *server,
 		if (client->order->status == ACME_STATUS_PENDING) {
 			acme_fsm_order_state = ACME_STATE_GET_AUTH;
 		} else if (client->order->status == ACME_STATUS_READY) {
-			if (verbose)
-				printf("Order is ready.\n");
+			DEBUG("Order is ready.\n");
 			acme_fsm_order_state = ACME_STATE_GET_AUTH;
 		} else {
-			if (verbose)
-				printf("Could not place order, retrying\n");
+			DEBUG("Could not place order, retrying\n");
 			sleep(1);
 		}
 		break;
 	case ACME_STATE_GET_AUTH:
-		if (verbose)
-			printf("Getting authorizations.\n");
+		DEBUG("Getting authorizations.\n");
 		switch (acme_get_auth(client, server)) {
 		case 0:
-			if (verbose)
-				printf("Obtained all authorizations\n");
+			DEBUG("Obtained all authorizations\n");
 			acme_fsm_order_state = ACME_STATE_NEW_ORDER;
 			return 1;
 		case 1:
-			if (verbose)
-				printf("Obtained all authorizations\n");
+			DEBUG("Obtained all authorizations\n");
 			acme_fsm_order_state = ACME_STATE_NEW_ORDER;
 			return 2;
 		default:
-			fprintf(stderr,
-				"Authorization fetching failed, retrying.\n");
+			ERROR("Authorization fetching failed, retrying.\n");
 			sleep(1);
 		}
 		break;
@@ -194,19 +189,18 @@ int8_t acme_fsm_validate(struct acme_account *client,
 		sleep(1);
 		break;
 	case ACME_STATE_CHECK_AUTH:
-		if (verbose)
-			printf("Checking authorization state.\n");
+		DEBUG("Checking authorization state.\n");
 		switch (acme_get_auth(client, server)) {
 		case 0:
 			auth_retry_count++;
 			if (auth_retry_count == 5) {
 				acme_fsm_validate_state = ACME_STATE_AUTHORIZE;
-				printf("Authorization are still not valid. "
-				       "Trying again.\n");
+				DEBUG("Authorization are still not valid. "
+				      "Trying again.\n");
 			}
 			break;
 		case -1:
-			printf("Authorization is not ready yet.\n");
+			DEBUG("Authorization is not ready yet.\n");
 			sleep(1);
 			return 0;
 		}
@@ -227,8 +221,7 @@ int8_t acme_fsm_cert(struct acme_account *client, struct acme_server *server,
 {
 	switch (acme_fsm_cert_state) {
 	case ACME_STATE_FINALIZE:
-		if (verbose)
-			printf("Finalizing: Request server to issue cert.\n");
+		DEBUG("Finalizing: Request server to issue cert.\n");
 		if (!acme_finalize(client, server, domain_list)) {
 			acme_fsm_cert_state = ACME_STATE_WAIT_FOR_CERT;
 		}
@@ -236,16 +229,14 @@ int8_t acme_fsm_cert(struct acme_account *client, struct acme_server *server,
 		return 0;
 		break;
 	case ACME_STATE_WAIT_FOR_CERT:
-		if (verbose)
-			printf("Waiting for server to issue certificate.\n");
+		DEBUG("Waiting for server to issue certificate.\n");
 		if (acme_get_order_status(client, server)) {
 			acme_fsm_cert_state = ACME_STATE_GET_CERT;
 		}
 		sleep(1);
 		return 0;
 	case ACME_STATE_GET_CERT:
-		if (verbose)
-			printf("Certificate is ready.\n");
+		DEBUG("Certificate is ready.\n");
 		acme_get_cert(client, server);
 		acme_cert_chain = malloc(strlen(acme_srv_response) + 1);
 		strcpy(acme_cert_chain, acme_srv_response);
@@ -255,7 +246,7 @@ int8_t acme_fsm_cert(struct acme_account *client, struct acme_server *server,
 		fd = fopen("cert.crt", "w");
 		fprintf(fd, "%s", acme_cert_chain);
 		fclose(fd);
-		printf("Certificate saved to cert.crt\n");
+		NOTICE("Certificate saved to cert.crt\n");
 		acme_fsm_validate_state = ACME_STATE_GET_ACC;
 		free(acme_cert_chain);
 		return 1;
@@ -343,7 +334,6 @@ size_t acme_write_cb(char *ptr, size_t size, size_t nmemb, void *packet_info)
 		acme_srv_response = malloc(packet->total_length + 1);
 		memcpy(acme_srv_response, packet->buffer, packet->total_length);
 		acme_srv_response[packet->total_length] = '\0';
-		//printf("%s\n",acme_srv_response);
 
 		free(packet->buffer);
 		packet->buffer = NULL;
@@ -356,8 +346,7 @@ size_t acme_write_cb(char *ptr, size_t size, size_t nmemb, void *packet_info)
 
 int8_t acme_new_acc(struct acme_account *client, struct acme_server *server)
 {
-	if (verbose)
-		printf("Requesting account.\n");
+	DEBUG("Requesting account.\n");
 	/* if no nonce is available, request a new one */
 	if (acme_nonce == NULL) {
 		if (acme_new_nonce(server)) {
@@ -445,7 +434,7 @@ int8_t acme_new_acc(struct acme_account *client, struct acme_server *server)
 	if (srv_resp == NULL) {
 		const char *err = cJSON_GetErrorPtr();
 		if (err != NULL) {
-			printf("JSON parse error in server response: err\n");
+			ERROR("JSON parse error in server response: err\n");
 		}
 		return -1;
 	}
@@ -453,14 +442,14 @@ int8_t acme_new_acc(struct acme_account *client, struct acme_server *server)
 	cJSON *orders = cJSON_GetObjectItemCaseSensitive(srv_resp, "orders");
 	if (cJSON_IsString(status)) {
 		if (strcmp(status->valuestring, "valid")) {
-			printf("Server response: status = %s\n",
-			       status->valuestring);
+			ERROR("Server response: status = %s\n",
+			      status->valuestring);
 			return -1;
 		}
 		acme_kid = malloc(strlen(acme_location) + 1);
 		strcpy(acme_kid, acme_location);
 		if (verbose) {
-			printf("Account %s is valid\n", acme_kid);
+			ERROR("Account %s is valid\n", acme_kid);
 		}
 		client->status = ACME_STATUS_VALID;
 		if (cJSON_IsString(orders)) {
@@ -469,7 +458,7 @@ int8_t acme_new_acc(struct acme_account *client, struct acme_server *server)
 			strcpy(client->order_list, orders->valuestring);
 		}
 	} else {
-		printf("Account is not valid.\n");
+		DEBUG("Account is not valid.\n");
 
 		/* The cause may be an incorrent nonce, so get a new 
                  * one just in case that fixes it */
@@ -494,7 +483,7 @@ int8_t acme_new_acc(struct acme_account *client, struct acme_server *server)
 void acme_print_srv_response()
 {
 	assert(acme_srv_response != NULL);
-	printf("Server response:\n%s\n", acme_srv_response);
+	NOTICE("Server response:\n%s\n", acme_srv_response);
 }
 
 cJSON *acme_parse_srv_resp()
@@ -509,10 +498,7 @@ cJSON *acme_parse_srv_resp()
 int8_t acme_new_order(struct acme_account *client, struct acme_server *server,
 		      struct string_node *domain_list)
 {
-	if (verbose) {
-		printf("Updating order at: %s\n",
-		       server->resources[ACME_RES_NEW_ORDER]);
-	}
+	DEBUG("Updating order at: %s\n", server->resources[ACME_RES_NEW_ORDER]);
 
 	/* Header */
 	struct acme_header hdr;
@@ -569,8 +555,7 @@ int8_t acme_new_order(struct acme_account *client, struct acme_server *server,
 	if (srv_resp == NULL) {
 		const char *err = cJSON_GetErrorPtr();
 		if (err != NULL) {
-			printf("JSON parse error in server response: %s\n",
-			       err);
+			ERROR("JSON parse error in server response: %s\n", err);
 		}
 		return -1;
 	}
@@ -592,7 +577,7 @@ int8_t acme_new_order(struct acme_account *client, struct acme_server *server,
 			client->order->authz = string_list_append(
 				client->order->authz, auth->valuestring);
 		} else {
-			printf("Auth parse error\n");
+			ERROR("Auth parse error\n");
 		}
 	}
 	cJSON *srv_id;
@@ -612,7 +597,7 @@ int8_t acme_new_order(struct acme_account *client, struct acme_server *server,
 			free(new_id->value);
 			free(new_id);
 		} else {
-			printf("Identifier parse error\n");
+			ERROR("Identifier parse error\n");
 		}
 	}
 
@@ -621,15 +606,15 @@ int8_t acme_new_order(struct acme_account *client, struct acme_server *server,
 			malloc(strlen(finalize->valuestring) + 1);
 		strcpy(client->order->finalize_url, finalize->valuestring);
 	} else {
-		printf("Server response parse error\n");
+		ERROR("Server response parse error\n");
 		acme_print_srv_response();
 		cJSON_Delete(srv_resp);
 		free(acme_srv_response);
 		acme_srv_response = NULL;
 		return -1;
 	}
-	if (verbose && (client->order->status == ACME_STATUS_PENDING)) {
-		printf("Order %s updated successfully.\n", acme_location);
+	if (client->order->status == ACME_STATUS_PENDING) {
+		DEBUG("Order %s updated successfully.\n", acme_location);
 	}
 	client->order->order_url = malloc(strlen(acme_location) + 1);
 	strcpy(client->order->order_url, acme_location);
@@ -690,9 +675,9 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 		if (srv_resp == NULL) {
 			const char *err = cJSON_GetErrorPtr();
 			if (err != NULL) {
-				printf("JSON parse error"
-				       "in server response: %s\n",
-				       err);
+				ERROR("JSON parse error"
+				      "in server response: %s\n",
+				      err);
 			}
 			free(acme_srv_response);
 			acme_srv_response = NULL;
@@ -715,8 +700,6 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 
 		cJSON *challenges = cJSON_GetObjectItemCaseSensitive(
 			srv_resp, "challenges");
-		cJSON *wildcard =
-			cJSON_GetObjectItemCaseSensitive(srv_resp, "wildcard");
 		cJSON *identifier = cJSON_GetObjectItemCaseSensitive(
 			srv_resp, "identifier");
 		cJSON *id_value =
@@ -725,10 +708,9 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 			cJSON_GetObjectItemCaseSensitive(srv_resp, "status");
 
 		if (!cJSON_IsString(status)) {
-			fprintf(stderr,
-				"Error while checking authorization "
-				"state:\n%s\n",
-				acme_srv_response);
+			ERROR("Error while checking authorization "
+			      "state:\n%s\n",
+			      acme_srv_response);
 			free(acme_srv_response);
 			acme_srv_response = NULL;
 			cJSON_Delete(srv_resp);
@@ -736,15 +718,14 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 			return -1;
 		} else if (acme_get_status(status->valuestring) ==
 			   ACME_STATUS_VALID) {
-			if (verbose) {
-				printf("Authorization for \"%s\" is valid, no more challenges"
-				       " need to be fulfilled.\n",
-				       id_value->valuestring);
-			}
+			DEBUG("Authorization for \"%s\" is valid, no more challenges"
+			      " need to be fulfilled.\n",
+			      id_value->valuestring);
+
 			acme_free_auth(new_auth);
 		} else if (acme_get_status(status->valuestring) ==
 			   ACME_STATUS_PENDING) {
-			printf("Authorization is pending.\n");
+			DEBUG("Authorization is pending.\n");
 			need_chal = 1;
 			new_id->type = ACME_ID_DNS;
 			if (cJSON_IsString(id_value)) {
@@ -779,8 +760,7 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 					new_chal->status = acme_get_status(
 						status->valuestring);
 				} else {
-					fprintf(stderr,
-						"Challenge has invalid status.\n");
+					ERROR("Challenge has invalid status.\n");
 					free(new_chal);
 					chal_list_delete(new_auth->challenges);
 					acme_free_auth(new_auth);
@@ -807,22 +787,13 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 				free(new_chal);
 			}
 
-			/* check for wildcard domain */
-			if (cJSON_IsBool(wildcard)) {
-				if (wildcard->valueint) {
-					printf("Wildcard domain detected: using dns-01\n");
-				}
-			}
 			if (new_auth->status == ACME_STATUS_INVALID) {
-				fprintf(stderr,
-					"Authorization has invalid status.\n");
+				ERROR("Authorization has invalid status.\n");
 				acme_free_auth(new_auth);
 				return -1;
 			}
-			if (verbose) {
-				printf("Parsed authorization object for \"%s\".\n",
-				       new_auth->id->value);
-			}
+			DEBUG("Parsed authorization object for \"%s\".\n",
+			      new_auth->id->value);
 			client->authz_list =
 				authz_list_append(client->authz_list, new_auth);
 			chal_list_delete(new_auth->challenges);
@@ -834,10 +805,10 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 			acme_srv_response = NULL;
 		} else if (acme_get_status(status->valuestring) ==
 			   ACME_STATUS_INVALID) {
-			printf("Authorization is invalid: "
-			       "The server could not verify the "
-			       "challenges. Check domain name and "
-			       "firewall rules and try again.\n");
+			ERROR("Authorization is invalid: "
+			      "The server could not verify the "
+			      "challenges. Check domain name and "
+			      "firewall rules and try again.\n");
 			acme_free_auth(new_auth);
 			free(acme_srv_response);
 			acme_srv_response = NULL;
@@ -850,7 +821,6 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 		cJSON_Delete(srv_resp);
 	}
 	if (need_chal) {
-		printf("need_chal\n");
 		return 0;
 	}
 	return 1;
@@ -905,9 +875,9 @@ int8_t acme_authorize(struct acme_account *client, struct acme_server *server,
 		}
 		acme_free_auth(auth);
 		if (chal->type != method) {
-			fprintf(stderr, "Can not authorize: server did "
-					"not offer a challenge of type of "
-					"requested type.");
+			ERROR("Can not authorize: server did "
+			      "not offer a challenge of type of "
+			      "requested type.");
 			return -1;
 		}
 
@@ -946,7 +916,7 @@ int8_t acme_authorize(struct acme_account *client, struct acme_server *server,
 		if (srv_resp == NULL) {
 			const char *err = cJSON_GetErrorPtr();
 			if (err != NULL) {
-				printf("JSON parse error in server response: err\n");
+				ERROR("JSON parse error in server response: err\n");
 			}
 			return -1;
 		}
@@ -1008,13 +978,11 @@ int8_t acme_finalize(struct acme_account *client, struct acme_server *server,
 	int ret = 0;
 	switch (acme_get_status(status->valuestring)) {
 	case ACME_STATUS_PROCESSING:
-		if (verbose)
-			printf("Server is processing certificate request.\n");
+		DEBUG("Server is processing certificate request.\n");
 		ret = 0;
 		break;
 	case ACME_STATUS_READY:
-		if (verbose)
-			printf("Server has issued certificate.\n");
+		DEBUG("Server has issued certificate.\n");
 		ret = 1;
 		break;
 	default:
@@ -1125,7 +1093,7 @@ int8_t acme_get_resources(struct acme_server *server, uint8_t accept_tos)
 
 	cJSON *res = cJSON_Parse(acme_srv_response);
 	if (res == NULL) {
-		fprintf(stderr, "JSON parse error.\n");
+		ERROR("JSON parse error.\n");
 		return -1;
 	}
 	cJSON *nonce = cJSON_GetObjectItemCaseSensitive(res, "newNonce");
@@ -1136,21 +1104,20 @@ int8_t acme_get_resources(struct acme_server *server, uint8_t accept_tos)
 	cJSON *terms = cJSON_GetObjectItemCaseSensitive(meta, "termsOfService");
 
 	if (cJSON_IsString(terms)) {
-		printf("Terms of service are located at %s\n",
+		NOTICE("Terms of service are located at %s\n",
 		       terms->valuestring);
 		if (!accept_tos) {
-			printf("Do you agree to the terms of service? [Y/n]");
+			NOTICE("Do you agree to the terms of service? [Y/n]");
 			char answer;
 			int len = scanf("%c", &answer);
 			if (len == 1 && answer != 'y' && answer != 'Y' &&
 			    answer != 0x0A) {
-				fprintf(stderr,
-					"You must agree to the terms of service"
-					" in order to continue.\n");
+				ERROR("You must agree to the terms of service"
+				      " in order to continue.\n");
 				return -2;
 			}
 		} else {
-			printf("Accepting terms of service.\n");
+			DEBUG("Accepting terms of service.\n");
 		}
 	}
 
@@ -1163,13 +1130,11 @@ int8_t acme_get_resources(struct acme_server *server, uint8_t accept_tos)
 	acme_server_add_resource(server, ACME_RES_REVOKE_CERT,
 				 revoke->valuestring);
 
-	if (verbose) {
-		printf("Added server resources:\n");
-		printf("NEW_NONCE: %s\n", nonce->valuestring);
-		printf("NEW_ACC: %s\n", acc->valuestring);
-		printf("NEW_ORDER: %s\n", order->valuestring);
-		printf("NEW_REVOKE_CERT: %s\n", revoke->valuestring);
-	}
+	DEBUG("Added server resources:\n");
+	DEBUG("NEW_NONCE: %s\n", nonce->valuestring);
+	DEBUG("NEW_ACC: %s\n", acc->valuestring);
+	DEBUG("NEW_ORDER: %s\n", order->valuestring);
+	DEBUG("NEW_REVOKE_CERT: %s\n", revoke->valuestring);
 
 	if (res != NULL)
 		cJSON_Delete(res);
