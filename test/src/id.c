@@ -29,7 +29,7 @@ void test_id_list_create()
 	free(new_id->value);
 	free(new_id);
 
-	*new_id = malloc(sizeof(struct acme_identifier));
+	new_id = malloc(sizeof(struct acme_identifier));
 	new_id->type = ACME_ID_DNS;
 	new_id->value = malloc(strlen("I am an identifier") + 1);
 	strcpy(new_id->value, "I am an identifier");
