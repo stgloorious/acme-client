@@ -549,7 +549,7 @@ int8_t acme_new_order(struct acme_account *client, struct acme_server *server,
 		;
 
 	/* Create an order object from the server response */
-	client->order = malloc(sizeof(struct acme_order));
+	client->order = realloc(client->order, sizeof(struct acme_order));
 	client->order->status = ACME_STATUS_UNKNOWN;
 	client->order->identifiers = NULL;
 	client->order->authz = NULL;
