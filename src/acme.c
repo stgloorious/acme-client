@@ -245,9 +245,8 @@ int8_t acme_fsm_cert(struct acme_account *client, struct acme_server *server,
 		free(acme_srv_response);
 		acme_srv_response = NULL;
 
-		/* Set permissions of certificate to 0666 */
-		umask(~(S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH |
-			S_IWOTH));
+		/* Set permissions of certificate to 0644 */
+		umask(~(S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH));
 		FILE *fd;
 		fd = fopen("cert.crt", "w");
 		fprintf(fd, "%s", acme_cert_chain);
