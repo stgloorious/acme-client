@@ -984,6 +984,7 @@ int8_t acme_finalize(struct acme_account *client, struct acme_server *server,
 		DEBUG("Server is processing certificate request.\n");
 		ret = 0;
 		break;
+	case ACME_STATUS_VALID:
 	case ACME_STATUS_READY:
 		DEBUG("Server has issued certificate.\n");
 		ret = 1;
