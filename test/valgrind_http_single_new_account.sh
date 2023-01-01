@@ -6,8 +6,7 @@ cmd="valgrind --leak-check=full --show-leak-kinds=all \
 --dir https://$PEBBLE_HOSTNAME:$PEBBLE_LISTEN_PORT/dir \
 --domain $DOMAIN \
 --verbose --cert $TEST_DIR/pebble/pebble.minica.pem \
---agree-tos --port $PEBBLE_HTTP_PORT \
---account-key account.pem"
+--agree-tos --port $PEBBLE_HTTP_PORT"
 
 $TEST_DIR/start_pebble.sh
 pebble_stat=$?
@@ -15,8 +14,6 @@ if [[ $pebble_stat -ne 0 ]]; then
         $TEST_DIR/kill_pebble.sh
         exit -1
 fi
-
-openssl ecparam -genkey -name prime256v1 -out account.pem
 
 echo "Running $cmd"
 echo "$cmd" | bash
@@ -48,5 +45,8 @@ if ps -p $https_pid > /dev/null; then
         kill $https_pid
         echo "Killed HTTPS server PID $https_pid"
 fi
+
+# Check the generated account key
+openssl ec -in account.pem -noout -check || exit -1
 
 exit $status

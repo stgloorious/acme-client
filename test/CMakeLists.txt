@@ -39,9 +39,13 @@ add_test(NAME valgrind-no-args COMMAND ${BASH_PROGRAM}
         ${CMAKE_SOURCE_DIR}/test/valgrind_no_args.sh)
 add_test(NAME valgrind-help COMMAND ${BASH_PROGRAM}
         ${CMAKE_SOURCE_DIR}/test/valgrind_help.sh)
+add_test(NAME valgrind-http-single-new-account COMMAND ${BASH_PROGRAM}
+        ${CMAKE_SOURCE_DIR}/test/valgrind_http_single_new_account.sh)
 add_test(NAME valgrind-http-single-1 COMMAND ${BASH_PROGRAM}
         ${CMAKE_SOURCE_DIR}/test/valgrind_http_single.sh)
 add_test(NAME valgrind-http-single-2 COMMAND ${BASH_PROGRAM}
+        ${CMAKE_SOURCE_DIR}/test/valgrind_http_single.sh)
+add_test(NAME valgrind-http-single-3 COMMAND ${BASH_PROGRAM}
         ${CMAKE_SOURCE_DIR}/test/valgrind_http_single.sh)
 
 set_tests_properties(
@@ -54,8 +58,10 @@ set_tests_properties(
         http-single-2
         valgrind-no-args
         valgrind-help
+        valgrind-http-single-new-account
         valgrind-http-single-1
         valgrind-http-single-2
+        valgrind-http-single-3
 PROPERTIES
 TIMEOUT 180
 SKIP_RETURN_CODE 127
@@ -76,9 +82,13 @@ set_property(TEST http-single-1 APPEND PROPERTY ENVIRONMENT
         "DOMAIN=example.com")
 set_property(TEST http-single-2 APPEND PROPERTY ENVIRONMENT
         "DOMAIN=foobar.domain.com")
+set_property(TEST valgrind-http-single-new-account APPEND PROPERTY ENVIRONMENT
+        "DOMAIN=example.com")
 set_property(TEST valgrind-http-single-1 APPEND PROPERTY ENVIRONMENT
         "DOMAIN=example.com")
 set_property(TEST valgrind-http-single-2 APPEND PROPERTY ENVIRONMENT
         "DOMAIN=foobar.domain.com")
+set_property(TEST valgrind-http-single-3 APPEND PROPERTY ENVIRONMENT
+        "DOMAIN=admin.test.server.certificate.foobar.domain")
 
 

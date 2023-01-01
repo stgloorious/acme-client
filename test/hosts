@@ -4,8 +4,17 @@
 127.0.0.1  example.com
 ::1        example.com
 
+127.0.0.1  domain.com
+::1        domain.com
+
+127.0.0.1  admin.example.com
+::1        admin.example.com
+
 127.0.0.1  foobar.domain.com
 ::1        foobar.domain.com
+
+127.0.0.1  admin.test.server.certificate.foobar.domain.com
+::1        admin.test.server.certificate.foobar.domain.com
 
 127.0.0.1  pebble
 ::1        pebble

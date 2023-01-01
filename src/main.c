@@ -94,6 +94,7 @@ int main(int argc, char **argv)
 		}
 	}
 	client.key = &key;
+	client.order = NULL;
 	client.order_list = NULL;
 	client.status = ACME_STATUS_UNKNOWN;
 	client.authz_list = NULL;
