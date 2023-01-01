@@ -88,9 +88,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
 		arguments->account_key = arg;
 		break;
 	case ARGP_KEY_NO_ARGS:
-		if (*arguments->dir_url == '\0') {
-			argp_error(state, "--dir DIR_URL is required!");
-		}
 		if (arguments->ndomain == 0) {
 			argp_error(state, "--domain DOMAIN is "
 					  "required!");
