@@ -32,6 +32,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <cjson/cJSON.h>
+#include <sys/stat.h>
 
 #include "string.h"
 #include "acme.h"
@@ -243,6 +244,10 @@ int8_t acme_fsm_cert(struct acme_account *client, struct acme_server *server,
 		strcpy(acme_cert_chain, acme_srv_response);
 		free(acme_srv_response);
 		acme_srv_response = NULL;
+
+		/* Set permissions of certificate to 0666 */
+		umask(~(S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH |
+			S_IWOTH));
 		FILE *fd;
 		fd = fopen("cert.crt", "w");
 		fprintf(fd, "%s", acme_cert_chain);
@@ -945,6 +950,8 @@ int8_t acme_finalize(struct acme_account *client, struct acme_server *server,
 	crypt_strip_csr(csr_pem);
 	b64_normal2url(csr_pem);
 
+	/* Set certificate key to 0600 permissions */
+	umask(~(S_IRUSR | S_IWUSR));
 	FILE *keyfile;
 	keyfile = fopen("client.key", "w");
 	PEM_write_PKCS8PrivateKey(keyfile, csr_key, NULL, NULL, 0, 0, "");
