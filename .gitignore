@@ -4,3 +4,4 @@ test/pebble/root.pem
 test/pebble/pebble.pid
 test/CMakeCache.txt
 test/CMakeFiles
+tags
