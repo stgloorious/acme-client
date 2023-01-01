@@ -223,7 +223,7 @@ int8_t acme_fsm_cert(struct acme_account *client, struct acme_server *server,
 	case ACME_STATE_FINALIZE:
 		DEBUG("Finalizing: Request server to issue cert.\n");
 		int ret = acme_finalize(client, server, domain_list);
-		if (ret == 0 && ret == 1) {
+		if (ret == 0 || ret == 1) {
 			acme_fsm_cert_state = ACME_STATE_WAIT_FOR_CERT;
 		}
 		sleep(1);
