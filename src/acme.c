@@ -239,22 +239,23 @@ int8_t acme_fsm_cert(struct acme_account *client, struct acme_server *server,
 		return 0;
 	case ACME_STATE_GET_CERT:
 		DEBUG("Certificate is ready.\n");
-		acme_get_cert(client, server);
-		acme_cert_chain = malloc(strlen(acme_srv_response) + 1);
-		strcpy(acme_cert_chain, acme_srv_response);
-		free(acme_srv_response);
-		acme_srv_response = NULL;
+		if (!acme_get_cert(client, server)) {
+			acme_cert_chain = malloc(strlen(acme_srv_response) + 1);
+			strcpy(acme_cert_chain, acme_srv_response);
+			free(acme_srv_response);
+			acme_srv_response = NULL;
 
-		/* Set permissions of certificate to 0644 */
-		umask(~(S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH));
-		FILE *fd;
-		fd = fopen("cert.crt", "w");
-		fprintf(fd, "%s", acme_cert_chain);
-		fclose(fd);
-		NOTICE("Certificate saved to cert.crt\n");
-		acme_fsm_validate_state = ACME_STATE_GET_ACC;
-		free(acme_cert_chain);
-		return 1;
+			/* Set permissions of certificate to 0644 */
+			umask(~(S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH));
+			FILE *fd;
+			fd = fopen("cert.crt", "w");
+			fprintf(fd, "%s", acme_cert_chain);
+			fclose(fd);
+			NOTICE("Certificate saved to cert.crt\n");
+			acme_fsm_validate_state = ACME_STATE_GET_ACC;
+			free(acme_cert_chain);
+			return 1;
+		}
 		break;
 	default:
 		return -1;
@@ -1074,6 +1075,7 @@ int8_t acme_get_cert(struct acme_account *client, struct acme_server *server)
 	cJSON *status = cJSON_GetObjectItemCaseSensitive(srv_resp, "status");
 
 	if (status != NULL) {
+		ERROR("Error while downloading certificate.\n");
 		cJSON_Delete(srv_resp);
 		return -1;
 	}
