@@ -7,8 +7,8 @@
 
 int main(int argc, char **argv)
 {
-	unsigned char *in;
-	char *buf;
+	unsigned char *in = NULL;
+	char *buf = NULL;
 	unsigned int len = atoi(argv[1]);
 	if (argc != 4) {
 		printf("Usage: b64 INPUT_LENGTH OUTPUT_LENGTH FILENAME\n");
