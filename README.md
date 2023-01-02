@@ -71,17 +71,17 @@ Needed additionally for testing (debug build):
 #### Using CMake
 Get the sources: 
 
-        git clone https://github.com/stgloorious/acme-client && cd acme-client
+    git clone https://github.com/stgloorious/acme-client && cd acme-client
     
 Compile (Release build):
 
-        cmake -DCMAKE_BUILD_TYPE=Release -B build
-        cd build && make
+    cmake -DCMAKE_BUILD_TYPE=Release -B build
+    cd build && make
      
 Compile and test (Debug build):
 
-        cmake -DCMAKE_BUILD_TYPE=Debug -B build
-        cd build && make all test
+    cmake -DCMAKE_BUILD_TYPE=Debug -B build
+    cd build && make all test
         
         
 
