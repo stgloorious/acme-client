@@ -89,6 +89,6 @@ set_property(TEST valgrind-http-single-1 APPEND PROPERTY ENVIRONMENT
 set_property(TEST valgrind-http-single-2 APPEND PROPERTY ENVIRONMENT
         "DOMAIN=foobar.domain.com")
 set_property(TEST valgrind-http-single-3 APPEND PROPERTY ENVIRONMENT
-        "DOMAIN=admin.test.server.certificate.foobar.domain")
+        "DOMAIN=admin.test.server.certificate.foobar.domain.com")
 
 
