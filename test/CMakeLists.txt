@@ -5,6 +5,11 @@ find_program(pebble NAMES pebble_linux-amd64 pebble REQUIRED)
 
 file(GLOB sources ../src/*.c)
 
+set (CMAKE_C_FLAGS "-Wall -Wextra -Werror")
+set (CMAKE_C_FLAGS_RELEASE "-O2")
+set (CMAKE_C_FLAGS_DEBUG "-Og -g3 -ggdb --coverage -fprofile-arcs \
+-ftest-coverage -DCONFIG_PRINT_ARGS")
+
 # Build a library for testing
 add_library(acme ${sources})
 target_link_libraries(acme OpenSSL::SSL)
