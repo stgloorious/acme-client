@@ -46,10 +46,6 @@ jobs:
     - name: Coverage
       run: sudo apt -y install lcov &&
            cd build && gcov src/CMakeFiles/acme-client.dir/* &&
-           gcov test/CMakeFiles/string.dir/src/* &&
-           gcov test/CMakeFiles/b64.dir/src/* &&
-           gcov test/CMakeFiles/chal.dir/src/* &&
-           gcov test/CMakeFiles/id.dir/src/* &&
            lcov --capture --directory . --output-file out.info-file &&
            genhtml out.info-file &&
            curl -Os https://uploader.codecov.io/latest/linux/codecov &&
