@@ -857,6 +857,9 @@ int8_t acme_authorize(struct acme_account *client, struct acme_server *server,
 	while (client->authz_list != NULL) {
 		client->authz_list =
 			authz_list_pop_back(client->authz_list, auth);
+		if (auth == NULL) {
+			return -1;
+		}
 		struct acme_chal *chal = malloc(sizeof(struct acme_chal));
 		chal->type = ACME_CHAL_HTTP01;
 		chal->token = NULL;
@@ -880,6 +883,7 @@ int8_t acme_authorize(struct acme_account *client, struct acme_server *server,
 			free(chal->url);
 		}
 		acme_free_auth(auth);
+		auth = NULL;
 		if (chal->type != method) {
 			ERROR("Can not authorize: server did "
 			      "not offer a challenge of type of "

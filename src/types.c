@@ -292,6 +292,7 @@ struct authz_node *authz_list_pop_back(struct authz_node *head,
 	if (out != NULL) {
 		out->id->type = head->auth->id->type;
 		out->id->value = malloc(strlen(head->auth->id->value) + 1);
+		strcpy(out->id->value, head->auth->id->value);
 		out->wildcard = head->auth->wildcard;
 		out->status = head->auth->status;
 		out->challenges = chal_list_copy(head->auth->challenges);

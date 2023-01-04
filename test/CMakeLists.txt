@@ -52,6 +52,8 @@ add_test(NAME valgrind-http-single-2 COMMAND ${BASH_PROGRAM}
         ${CMAKE_SOURCE_DIR}/test/valgrind_http_single.sh)
 add_test(NAME valgrind-http-single-3 COMMAND ${BASH_PROGRAM}
         ${CMAKE_SOURCE_DIR}/test/valgrind_http_single.sh)
+add_test(NAME valgrind-http-multi-1 COMMAND ${BASH_PROGRAM}
+        ${CMAKE_SOURCE_DIR}/test/valgrind_http_multi.sh)
 
 set_tests_properties(
         base64-encoder
@@ -67,6 +69,7 @@ set_tests_properties(
         valgrind-http-single-1
         valgrind-http-single-2
         valgrind-http-single-3
+        valgrind-http-multi-1
 PROPERTIES
 TIMEOUT 180
 SKIP_RETURN_CODE 127
@@ -95,5 +98,6 @@ set_property(TEST valgrind-http-single-2 APPEND PROPERTY ENVIRONMENT
         "DOMAIN=foobar.domain.com")
 set_property(TEST valgrind-http-single-3 APPEND PROPERTY ENVIRONMENT
         "DOMAIN=admin.test.server.certificate.foobar.domain.com")
-
+set_property(TEST valgrind-http-multi-1 APPEND PROPERTY ENVIRONMENT
+        "DOMAIN_A=admin.test.server.certificate.foobar.domain.com;DOMAIN_B=example.com;DOMAIN_C=foobar.domain.com")
 
