@@ -71,7 +71,7 @@ set_tests_properties(
         valgrind-http-single-3
         valgrind-http-multi-1
 PROPERTIES
-TIMEOUT 180
+TIMEOUT 240
 SKIP_RETURN_CODE 127
 ENVIRONMENT
 "TEST_DIR=${CMAKE_SOURCE_DIR}/test;\

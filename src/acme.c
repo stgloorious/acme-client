@@ -694,7 +694,7 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
                  * (we don't know if we requested multiple domains) and the 
                  * challenges 
                  */
-
+		//DEBUG("%s\n", acme_srv_response);
 		struct acme_auth *new_auth = malloc(sizeof(struct acme_auth));
 		struct acme_identifier *new_id =
 			malloc(sizeof(struct acme_identifier));
@@ -722,8 +722,10 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 			cJSON_Delete(srv_resp);
 			acme_free_auth(new_auth);
 			return -1;
-		} else if (acme_get_status(status->valuestring) ==
-			   ACME_STATUS_VALID) {
+		} else {
+			new_auth->status = acme_get_status(status->valuestring);
+		}
+		if (acme_get_status(status->valuestring) == ACME_STATUS_VALID) {
 			DEBUG("Authorization for \"%s\" is valid, no more challenges"
 			      " need to be fulfilled.\n",
 			      id_value->valuestring);
@@ -800,6 +802,7 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 			}
 			DEBUG("Parsed authorization object for \"%s\".\n",
 			      new_auth->id->value);
+			DEBUG("new_auth status is %i\n", new_auth->status);
 			client->authz_list =
 				authz_list_append(client->authz_list, new_auth);
 			chal_list_delete(new_auth->challenges);
