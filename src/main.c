@@ -135,7 +135,7 @@ int main(int argc, char **argv)
 	/* FSM returns 2 if all authorization are already validated */
 	if (ret == 1) {
 		//TODO add manual validation
-		DEBUG("Performing automatic validation\n");
+		NOTICE("Performing automatic validation\n");
 
 		/* Start HTTP server used to validate challenges */
 		pthread_t http_chal_thr;
@@ -165,7 +165,7 @@ int main(int argc, char **argv)
 		pthread_join(http_chal_thr, &http_chal_thr_result);
 		int_shutdown = 0;
 	}
-	DEBUG("All domains were successfully verified.\n");
+	NOTICE("All domains were successfully verified.\n");
 
 	ret = 0;
 	while (ret == 0 && !int_shutdown) {

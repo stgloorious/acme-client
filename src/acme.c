@@ -159,14 +159,15 @@ int8_t acme_fsm_order(struct acme_account *client, struct acme_server *server,
 		}
 		break;
 	case ACME_STATE_GET_AUTH:
-		DEBUG("Getting authorizations.\n");
 		switch (acme_get_auth(client, server)) {
 		case 0:
-			DEBUG("Obtained all authorizations\n");
+			DEBUG("Obtained all authorizations, at least one "
+			      "of them needs to be validated.\n");
 			acme_fsm_order_state = ACME_STATE_NEW_ORDER;
 			return 1;
 		case 1:
-			DEBUG("Obtained all authorizations\n");
+			DEBUG("Obtained all authorizations, all of them "
+			      "are valid.\n");
 			acme_fsm_order_state = ACME_STATE_NEW_ORDER;
 			return 2;
 		default:
@@ -182,7 +183,6 @@ int8_t acme_fsm_order(struct acme_account *client, struct acme_server *server,
 int8_t acme_fsm_validate(struct acme_account *client,
 			 struct acme_server *server, enum acme_chal_type method)
 {
-	static uint8_t auth_retry_count = 0;
 	switch (acme_fsm_validate_state) {
 	case ACME_STATE_AUTHORIZE:
 		acme_authorize(client, server, method);
@@ -190,15 +190,9 @@ int8_t acme_fsm_validate(struct acme_account *client,
 		sleep(1);
 		break;
 	case ACME_STATE_CHECK_AUTH:
-		DEBUG("Checking authorization state.\n");
 		switch (acme_get_auth(client, server)) {
 		case 0:
-			auth_retry_count++;
-			if (auth_retry_count == 5) {
-				acme_fsm_validate_state = ACME_STATE_AUTHORIZE;
-				DEBUG("Authorization are still not valid. "
-				      "Trying again.\n");
-			}
+			acme_fsm_validate_state = ACME_STATE_AUTHORIZE;
 			break;
 		case -1:
 			DEBUG("Authorization is not ready yet.\n");
@@ -642,7 +636,9 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
          * different from "valid". */
 	uint8_t need_chal = 0;
 
-	/* copy list to not mess with the original */
+	/* copy list to not mess with the original, 
+         * this is only the URL list of the authorizations, 
+         * not the actual authorization objects */
 	struct string_node *authz = string_list_copy(client->order->authz);
 
 	/* Delete the old authorization objects */
@@ -694,7 +690,6 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
                  * (we don't know if we requested multiple domains) and the 
                  * challenges 
                  */
-		//DEBUG("%s\n", acme_srv_response);
 		struct acme_auth *new_auth = malloc(sizeof(struct acme_auth));
 		struct acme_identifier *new_id =
 			malloc(sizeof(struct acme_identifier));
@@ -729,17 +724,20 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 			DEBUG("Authorization for \"%s\" is valid, no more challenges"
 			      " need to be fulfilled.\n",
 			      id_value->valuestring);
-
 			acme_free_auth(new_auth);
+			continue;
 		} else if (acme_get_status(status->valuestring) ==
 			   ACME_STATUS_PENDING) {
-			DEBUG("Authorization is pending.\n");
+			DEBUG("Authorization for %s is pending.\n",
+			      id_value->valuestring);
 			need_chal = 1;
 			new_id->type = ACME_ID_DNS;
 			if (cJSON_IsString(id_value)) {
 				new_id->value = malloc(
 					strlen(id_value->valuestring) + 1);
 				strcpy(new_id->value, id_value->valuestring);
+			} else {
+				ERROR("Identifier value is not a string.\n");
 			}
 
 			/* For a single authorization (for a single identifier aka domain),
@@ -800,11 +798,12 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 				acme_free_auth(new_auth);
 				return -1;
 			}
-			DEBUG("Parsed authorization object for \"%s\".\n",
-			      new_auth->id->value);
-			DEBUG("new_auth status is %i\n", new_auth->status);
-			client->authz_list =
-				authz_list_append(client->authz_list, new_auth);
+			if (new_auth->status == ACME_STATUS_PENDING) {
+				client->authz_list = authz_list_append(
+					client->authz_list, new_auth);
+				DEBUG("Parsed challenge object for %s.\n",
+				      new_auth->id->value);
+			}
 			chal_list_delete(new_auth->challenges);
 			new_auth->challenges = NULL;
 			free(new_auth->id->value);
@@ -850,32 +849,25 @@ int8_t acme_authorize(struct acme_account *client, struct acme_server *server,
 	/* Take the an authorization objects and tell the server
          * that we are ready for challenge validation */
 
-	struct acme_auth *auth = malloc(sizeof(struct acme_auth));
-	auth->challenges = NULL;
-	auth->wildcard = 0;
-	auth->id = malloc(sizeof(struct acme_identifier));
-	auth->id->type = ACME_ID_DNS;
-	auth->id->value = NULL;
-	auth->status = ACME_STATUS_UNKNOWN;
 	while (client->authz_list != NULL) {
+		struct acme_auth *auth = malloc(sizeof(struct acme_auth));
+		auth->challenges = NULL;
+		auth->wildcard = 0;
+		auth->id = malloc(sizeof(struct acme_identifier));
+		auth->id->type = ACME_ID_DNS;
+		auth->id->value = NULL;
+		auth->status = ACME_STATUS_UNKNOWN;
 		client->authz_list =
 			authz_list_pop_back(client->authz_list, auth);
-		if (auth == NULL) {
-			return -1;
-		}
+
 		struct acme_chal *chal = malloc(sizeof(struct acme_chal));
 		chal->type = ACME_CHAL_HTTP01;
 		chal->token = NULL;
 		chal->status = ACME_STATUS_UNKNOWN;
 		chal->url = NULL;
 
-		/* Auth object must contain at least 
-                 * one challenge to continue */
-		if (auth->challenges == NULL) {
-			acme_free_auth(auth);
-			return -1;
-		}
-
+		/* Get the desired challenge from the given 
+                 * auth object */
 		while (auth->challenges != NULL) {
 			auth->challenges =
 				chal_list_pop_back(auth->challenges, chal);
@@ -885,12 +877,21 @@ int8_t acme_authorize(struct acme_account *client, struct acme_server *server,
 			free(chal->token);
 			free(chal->url);
 		}
-		acme_free_auth(auth);
-		auth = NULL;
+		/* Auth object must contain at least 
+                 * one challenge to continue */
+		if (chal->url == NULL) {
+			ERROR("Authorization object does not contain "
+			      "valid challenges.\n");
+			acme_free_auth(auth);
+			return -1;
+		}
+
 		if (chal->type != method) {
 			ERROR("Can not authorize: server did "
 			      "not offer a challenge of type of "
-			      "requested type.");
+			      "requested type: got %i, "
+			      "expected %i.\n",
+			      chal->type, method);
 			return -1;
 		}
 
@@ -912,6 +913,7 @@ int8_t acme_authorize(struct acme_account *client, struct acme_server *server,
 		/* this indicates to the server that we are ready
                  * that the server tries to attempt the challenge 
                  * checking */
+		DEBUG("Authorizing %s\n", auth->id->value);
 		curl_post(chal->url, token, acme_write_cb, acme_header_cb, NULL,
 			  server->ca_cert);
 
@@ -919,6 +921,8 @@ int8_t acme_authorize(struct acme_account *client, struct acme_server *server,
 		free(chal->url);
 		free(chal);
 		free(token);
+		acme_free_auth(auth);
+		auth = NULL;
 
 		/* Wait for response */
 		//TODO timeout
