@@ -306,6 +306,7 @@ struct authz_node *authz_list_pop_back(struct authz_node *head,
 		return NULL;
 	} else {
 		prev->next = NULL;
+		chal_list_delete(current->auth->challenges);
 		free(current->auth->id->value);
 		free(current->auth->id);
 		free(current->auth);

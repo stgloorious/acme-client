@@ -75,6 +75,7 @@ static char *acme_srv_response = NULL;
 
 struct acme_server *acme_server_new()
 {
+	curl_init();
 	struct acme_server *server = malloc(sizeof(struct acme_server));
 	server->resources = calloc(ACME_NUMBER_OF_RES, sizeof(char *));
 	server->ca_cert = NULL;
@@ -183,6 +184,7 @@ int8_t acme_fsm_order(struct acme_account *client, struct acme_server *server,
 int8_t acme_fsm_validate(struct acme_account *client,
 			 struct acme_server *server, enum acme_chal_type method)
 {
+	static uint8_t auth_retry_count = 0;
 	switch (acme_fsm_validate_state) {
 	case ACME_STATE_AUTHORIZE:
 		acme_authorize(client, server, method);
@@ -192,7 +194,11 @@ int8_t acme_fsm_validate(struct acme_account *client,
 	case ACME_STATE_CHECK_AUTH:
 		switch (acme_get_auth(client, server)) {
 		case 0:
-			acme_fsm_validate_state = ACME_STATE_AUTHORIZE;
+			auth_retry_count++;
+			if (auth_retry_count > 3) {
+				acme_fsm_validate_state = ACME_STATE_AUTHORIZE;
+				auth_retry_count = 0;
+			}
 			break;
 		case -1:
 			DEBUG("Authorization is not ready yet.\n");
@@ -683,6 +689,7 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 			}
 			free(acme_srv_response);
 			acme_srv_response = NULL;
+			string_list_delete(authz);
 			return -1;
 		}
 
@@ -716,15 +723,16 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 			acme_srv_response = NULL;
 			cJSON_Delete(srv_resp);
 			acme_free_auth(new_auth);
+			string_list_delete(authz);
 			return -1;
 		} else {
 			new_auth->status = acme_get_status(status->valuestring);
 		}
 		if (acme_get_status(status->valuestring) == ACME_STATUS_VALID) {
-			DEBUG("Authorization for \"%s\" is valid, no more challenges"
-			      " need to be fulfilled.\n",
-			      id_value->valuestring);
 			acme_free_auth(new_auth);
+			free(acme_srv_response);
+			acme_srv_response = NULL;
+			cJSON_Delete(srv_resp);
 			continue;
 		} else if (acme_get_status(status->valuestring) ==
 			   ACME_STATUS_PENDING) {
@@ -770,6 +778,7 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 					free(new_chal);
 					chal_list_delete(new_auth->challenges);
 					acme_free_auth(new_auth);
+					string_list_delete(authz);
 					return -1;
 				}
 
@@ -796,13 +805,12 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 			if (new_auth->status == ACME_STATUS_INVALID) {
 				ERROR("Authorization has invalid status.\n");
 				acme_free_auth(new_auth);
+				string_list_delete(authz);
 				return -1;
 			}
 			if (new_auth->status == ACME_STATUS_PENDING) {
 				client->authz_list = authz_list_append(
 					client->authz_list, new_auth);
-				DEBUG("Parsed challenge object for %s.\n",
-				      new_auth->id->value);
 			}
 			chal_list_delete(new_auth->challenges);
 			new_auth->challenges = NULL;
@@ -820,6 +828,7 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 			acme_free_auth(new_auth);
 			free(acme_srv_response);
 			acme_srv_response = NULL;
+			string_list_delete(authz);
 			return -1;
 		}
 		if (acme_srv_response) {
@@ -1222,6 +1231,7 @@ void acme_cleanup(struct acme_account *client)
 	free(client->order->cert_url);
 	free(client->order->finalize_url);
 	free(client->order->order_url);
+	curl_cleanup();
 }
 
 void acme_free_auth(struct acme_auth *auth)

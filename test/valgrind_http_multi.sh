@@ -35,20 +35,21 @@ fi
 command -v python3 || exit -1
 cat client.key cert.crt > cert.pem
 
-# Start an HTTPS server with our newly obtained certificate
-validate_port=5443
-python3 $TEST_DIR/https_server.py cert.pem $validate_port &
-https_pid=$!
-echo "Started HTTPS server with PID $https_pid"
-sleep 1
+for domain in $DOMAIN_A $DOMAIN_B $DOMAIN_C; do
+        # Start an HTTPS server with our newly obtained certificate
+        validate_port=5443
+        python3 $TEST_DIR/https_server.py cert.pem $validate_port &
+        https_pid=$!
+        echo "Started HTTPS server with PID $https_pid"
+        sleep 1
 
-# Curl the HTTPS server to check the certificate
-curl https://$DOMAIN:$validate_port --cacert $PEBBLE_ROOT_CERT
-status=$?
+        # Curl the HTTPS server to check the certificate
+        curl https://$domain:$validate_port --cacert $PEBBLE_ROOT_CERT
+        status=$?
 
-if ps -p $https_pid > /dev/null; then
-        kill $https_pid
-        echo "Killed HTTPS server PID $https_pid"
-fi
-
+        if ps -p $https_pid > /dev/null; then
+                kill $https_pid
+                echo "Killed HTTPS server PID $https_pid"
+        fi
+done
 exit $status

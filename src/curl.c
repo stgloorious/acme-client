@@ -24,6 +24,16 @@
 #include "curl.h"
 #include "err.h"
 
+void curl_init()
+{
+	curl_global_init(0);
+}
+
+void curl_cleanup()
+{
+	curl_global_cleanup();
+}
+
 int8_t curl_post(char *url, char *post, void *write_cb, void *header_cb,
 		 char *headers, char *ca_cert)
 {

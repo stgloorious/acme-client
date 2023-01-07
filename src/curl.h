@@ -26,6 +26,10 @@ struct curl_packet_info {
 	uint8_t chunked;
 };
 
+void curl_init();
+
+void curl_cleanup();
+
 int8_t curl_post(char *url, char *post, void *write_cb, void *header_cb,
 		 char *header, char *ca_cert);
 
