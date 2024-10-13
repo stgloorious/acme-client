@@ -1,5 +1,5 @@
-project(acme-client C)
 cmake_minimum_required(VERSION 3.20)
+project(acme-client C)
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/build)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/build)
