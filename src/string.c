@@ -97,7 +97,7 @@ struct string_node *string_list_copy(struct string_node *list)
 
 	struct string_node *current_orig = list->next;
 	struct string_node *current_copy = copy;
-	struct string_node *prev_copy = copy;
+	struct string_node *prev_copy;
 	while (current_orig != NULL) {
 		prev_copy = current_copy;
 		current_copy = malloc(sizeof(struct string_node));

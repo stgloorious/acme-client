@@ -518,6 +518,7 @@ int8_t acme_new_order(struct acme_account *client, struct acme_server *server,
 	hdr.kid = acme_kid;
 	hdr.nonce = acme_nonce;
 	hdr.url = server->resources[ACME_RES_NEW_ORDER];
+	hdr.jwk = NULL;
 
 	/* Payload */
 	cJSON *id;
@@ -666,6 +667,7 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 		hdr.alg = "ES256";
 		hdr.kid = acme_kid;
 		hdr.nonce = acme_nonce;
+		hdr.jwk = NULL;
 
 		char url[512]; //TODO malloc
 		hdr.url = url;
@@ -841,6 +843,12 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 			acme_srv_response = NULL;
 			string_list_delete(authz);
 			return -1;
+		} else {
+			acme_free_auth(new_auth);
+			free(acme_srv_response);
+			acme_srv_response = NULL;
+			string_list_delete(authz);
+			return -1;
 		}
 		if (acme_srv_response) {
 			free(acme_srv_response);
@@ -905,6 +913,7 @@ int8_t acme_authorize(struct acme_account *client, struct acme_server *server,
 			ERROR("Authorization object does not contain "
 			      "valid challenges.\n");
 			acme_free_auth(auth);
+			free(chal);
 			return -1;
 		}
 
@@ -914,6 +923,8 @@ int8_t acme_authorize(struct acme_account *client, struct acme_server *server,
 			      "requested type: got %i, "
 			      "expected %i.\n",
 			      chal->type, method);
+			acme_free_auth(auth);
+			free(chal);
 			return -1;
 		}
 
@@ -925,6 +936,7 @@ int8_t acme_authorize(struct acme_account *client, struct acme_server *server,
 		hdr.kid = acme_kid;
 		hdr.nonce = acme_nonce;
 		hdr.url = chal->url;
+		hdr.jwk = NULL;
 
 		/* Assemble the JWT */
 		char *header = acme_write_header(&hdr);
@@ -973,6 +985,7 @@ int8_t acme_finalize(struct acme_account *client, struct acme_server *server,
 	hdr.kid = acme_kid;
 	hdr.nonce = acme_nonce;
 	hdr.url = client->order->finalize_url;
+	hdr.jwk = NULL;
 
 	char *header = acme_write_header(&hdr);
 
@@ -1048,6 +1061,7 @@ int8_t acme_get_order_status(struct acme_account *client,
 	hdr.kid = acme_kid;
 	hdr.nonce = acme_nonce;
 	hdr.url = client->order->order_url;
+	hdr.jwk = NULL;
 
 	char *header = acme_write_header(&hdr);
 	char payload[] = "";
@@ -1091,6 +1105,7 @@ int8_t acme_get_cert(struct acme_account *client, struct acme_server *server)
 	hdr.kid = acme_kid;
 	hdr.nonce = acme_nonce;
 	hdr.url = client->order->cert_url;
+	hdr.jwk = NULL;
 
 	/* Assemble JWT */
 	char *header = acme_write_header(&hdr);
@@ -1199,7 +1214,8 @@ char *acme_write_header(struct acme_header *header)
 	/* get length of header fields */
 	uint16_t len;
 	if (header->kid == NULL) {
-		len = strlen(header->alg) + strlen(header->jwk) +
+		len = strlen(header->alg) +
+		      (header->jwk ? strlen(header->jwk) : 0) +
 		      strlen(header->nonce) + strlen(header->url);
 	} else {
 		len = strlen(header->alg) + strlen(header->kid) +

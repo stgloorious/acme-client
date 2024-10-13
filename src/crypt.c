@@ -139,6 +139,7 @@ int8_t crypt_sign(const char *msg, EVP_PKEY *key, char *signature,
 	if (EVP_DigestSignFinal(ctx, der_sig, &der_slen) != 1) {
 		ERROR("Signing failed.\n");
 		EVP_MD_CTX_destroy(ctx);
+		free(der_sig);
 		return -1;
 	}
 

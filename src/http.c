@@ -148,7 +148,7 @@ int8_t http_chal_start(uint16_t port)
 	/* open tcp socket */
 	struct sockaddr_in6 me, other;
 	int tcp_socket = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
-	bzero(&me, sizeof(me));
+	memset(&me, 0, sizeof(me));
 	me.sin6_family = AF_INET6;
 	me.sin6_port = htons(port);
 	me.sin6_addr = in6addr_any;
