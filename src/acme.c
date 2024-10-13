@@ -980,6 +980,7 @@ int8_t acme_finalize(struct acme_account *client, struct acme_server *server,
 	X509_REQ *csr;
 	const size_t csr_pem_len = 4096;
 	char csr_pem[csr_pem_len];
+	memset(csr_pem, 0, csr_pem_len);
 	crypt_new_csr(&csr_key, &csr, csr_pem, csr_pem_len, domain_list);
 	crypt_strip_csr(csr_pem, csr_pem_len);
 	b64_normal2url(csr_pem);
