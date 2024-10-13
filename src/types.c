@@ -40,8 +40,9 @@ struct id_node *id_list_append(struct id_node *head,
 		head = malloc(sizeof(struct id_node));
 		head->next = NULL;
 		head->id = malloc(sizeof(struct acme_identifier));
-		head->id->value = malloc(strlen(new_id->value) + 1);
-		strcpy(head->id->value, new_id->value);
+		size_t len = strlen(new_id->value) + 1;
+		head->id->value = malloc(len);
+		strncpy(head->id->value, new_id->value, len);
 		head->id->type = new_id->type;
 		return head;
 	}
@@ -54,8 +55,9 @@ struct id_node *id_list_append(struct id_node *head,
 	struct id_node *new_node = malloc(sizeof(struct id_node));
 	new_node->next = NULL;
 	new_node->id = malloc(sizeof(struct acme_identifier));
-	new_node->id->value = malloc(strlen(new_id->value) + 1);
-	strcpy(new_node->id->value, new_id->value);
+	size_t len = strlen(new_id->value) + 1;
+	new_node->id->value = malloc(len);
+	strncpy(new_node->id->value, new_id->value, len);
 	new_node->id->type = new_id->type;
 	current->next = new_node;
 	return head;
@@ -77,8 +79,9 @@ struct id_node *id_list_copy(struct id_node *head)
 		}
 		new_node->id = malloc(sizeof(struct acme_identifier));
 		new_node->id->type = head->id->type;
-		new_node->id->value = malloc(strlen(head->id->value) + 1);
-		strcpy(new_node->id->value, head->id->value);
+		size_t len = strlen(head->id->value) + 1;
+		new_node->id->value = malloc(len);
+		strncpy(new_node->id->value, head->id->value, len);
 		prev = new_node;
 		head = head->next;
 	}
@@ -99,8 +102,9 @@ struct id_node *id_list_pop_back(struct id_node *head,
 	}
 	assert(current != NULL);
 	if (out != NULL) {
-		out->value = malloc(strlen(current->id->value) + 1);
-		strcpy(out->value, current->id->value);
+		size_t len = strlen(current->id->value) + 1;
+		out->value = malloc(len);
+		strncpy(out->value, current->id->value, len);
 		out->type = current->id->type;
 	}
 	if (head == current) {
@@ -134,11 +138,13 @@ struct chal_node *chal_list_append(struct chal_node *head,
 		head->next = NULL;
 		head->chal = malloc(sizeof(struct acme_chal));
 		head->chal->status = new_chal->status;
-		head->chal->token = malloc(strlen(new_chal->token) + 1);
 		head->chal->type = new_chal->type;
-		head->chal->url = malloc(strlen(new_chal->url) + 1);
-		strcpy(head->chal->token, new_chal->token);
-		strcpy(head->chal->url, new_chal->url);
+		size_t len = strlen(new_chal->token) + 1;
+		head->chal->token = malloc(len);
+		strncpy(head->chal->token, new_chal->token, len);
+		len = strlen(new_chal->url) + 1;
+		head->chal->url = malloc(len);
+		strncpy(head->chal->url, new_chal->url, len);
 		return head;
 	}
 	/* if head already exists, traverse list */
@@ -151,11 +157,13 @@ struct chal_node *chal_list_append(struct chal_node *head,
 	new_node->next = NULL;
 	new_node->chal = malloc(sizeof(struct acme_chal));
 	new_node->chal->status = new_chal->status;
-	new_node->chal->token = malloc(strlen(new_chal->token) + 1);
 	new_node->chal->type = new_chal->type;
-	new_node->chal->url = malloc(strlen(new_chal->url) + 1);
-	strcpy(new_node->chal->token, new_chal->token);
-	strcpy(new_node->chal->url, new_chal->url);
+	size_t len = strlen(new_chal->token) + 1;
+	new_node->chal->token = malloc(len);
+	strncpy(new_node->chal->token, new_chal->token, len);
+	len = strlen(new_chal->url) + 1;
+	new_node->chal->url = malloc(len);
+	strncpy(new_node->chal->url, new_chal->url, len);
 	current->next = new_node;
 	return head;
 }
@@ -175,10 +183,12 @@ struct chal_node *chal_list_copy(struct chal_node *head)
 		} else {
 			new_list = new_node;
 		}
-		new_node->chal->token = malloc(strlen(head->chal->token) + 1);
-		strcpy(new_node->chal->token, head->chal->token);
-		new_node->chal->url = malloc(strlen(head->chal->url) + 1);
-		strcpy(new_node->chal->url, head->chal->url);
+		size_t len = strlen(head->chal->token) + 1;
+		new_node->chal->token = malloc(len);
+		strncpy(new_node->chal->token, head->chal->token, len);
+		len = strlen(head->chal->url) + 1;
+		new_node->chal->url = malloc(len);
+		strncpy(new_node->chal->url, head->chal->url, len);
 		new_node->chal->status = head->chal->status;
 		new_node->chal->type = head->chal->type;
 
@@ -205,10 +215,12 @@ struct chal_node *chal_list_pop_back(struct chal_node *head,
 	if (out != NULL) {
 		out->status = current->chal->status;
 		out->type = current->chal->type;
-		out->token = malloc(strlen(current->chal->token) + 1);
-		out->url = malloc(strlen(current->chal->url) + 1);
-		strcpy(out->token, current->chal->token);
-		strcpy(out->url, current->chal->url);
+		size_t len = strlen(current->chal->token) + 1;
+		out->token = malloc(len);
+		strncpy(out->token, current->chal->token, len);
+		len = strlen(current->chal->url) + 1;
+		out->url = malloc(len);
+		strncpy(out->url, current->chal->url, len);
 	}
 	if (head == current) {
 		free(head->chal->token);
@@ -244,8 +256,9 @@ struct authz_node *authz_list_append(struct authz_node *head,
 		head->auth->challenges = chal_list_copy(new_auth->challenges);
 		head->auth->id = malloc(sizeof(struct acme_identifier));
 		head->auth->id->type = new_auth->id->type;
-		head->auth->id->value = malloc(strlen(new_auth->id->value) + 1);
-		strcpy(head->auth->id->value, new_auth->id->value);
+		size_t len = strlen(new_auth->id->value) + 1;
+		head->auth->id->value = malloc(len);
+		strncpy(head->auth->id->value, new_auth->id->value, len);
 		head->auth->status = new_auth->status;
 		head->auth->wildcard = new_auth->wildcard;
 		return head;
@@ -262,8 +275,9 @@ struct authz_node *authz_list_append(struct authz_node *head,
 	new_node->auth->challenges = chal_list_copy(new_auth->challenges);
 	new_node->auth->id = malloc(sizeof(struct acme_identifier));
 	new_node->auth->id->type = new_auth->id->type;
-	new_node->auth->id->value = malloc(strlen(new_auth->id->value) + 1);
-	strcpy(new_node->auth->id->value, new_auth->id->value);
+	size_t len = strlen(new_auth->id->value) + 1;
+	new_node->auth->id->value = malloc(len);
+	strncpy(new_node->auth->id->value, new_auth->id->value, len);
 	new_node->auth->status = new_auth->status;
 	new_node->auth->wildcard = new_auth->wildcard;
 	current->next = new_node;
@@ -291,8 +305,9 @@ struct authz_node *authz_list_pop_back(struct authz_node *head,
 
 	if (out != NULL) {
 		out->id->type = head->auth->id->type;
-		out->id->value = malloc(strlen(head->auth->id->value) + 1);
-		strcpy(out->id->value, head->auth->id->value);
+		size_t len = strlen(head->auth->id->value) + 1;
+		out->id->value = malloc(len);
+		strncpy(out->id->value, head->auth->id->value, len);
 		out->wildcard = head->auth->wildcard;
 		out->status = head->auth->status;
 		out->challenges = chal_list_copy(head->auth->challenges);

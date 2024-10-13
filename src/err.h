@@ -21,7 +21,7 @@
 
 #define ERROR(str, ...) fprintf(stderr, str, ##__VA_ARGS__)
 #define NOTICE(str, ...) fprintf(stdout, str, ##__VA_ARGS__)
-#define DEBUG(str,...)                            \
-	if (verbose) {                        \
+#define DEBUG(str, ...)                              \
+	if (verbose) {                               \
 		fprintf(stdout, str, ##__VA_ARGS__); \
 	}

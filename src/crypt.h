@@ -37,7 +37,7 @@ int8_t crypt_sign(const char *msg, EVP_PKEY *key, char *token, uint16_t tlen);
 int8_t crypt_new_csr(EVP_PKEY **key, X509_REQ **csr, char *csr_pem,
 		     uint16_t len, struct string_node *domain_list);
 
-int8_t crypt_strip_csr(char *csr_pem);
+int8_t crypt_strip_csr(char *csr_pem, size_t len);
 
 /**
  * @param[in] key private key used to sign the token

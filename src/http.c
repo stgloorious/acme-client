@@ -56,13 +56,14 @@ void *http_chal_server(void *port)
 int8_t http_chal_respond(struct http_msg *msg, char *token, int *con)
 {
 	/* status line */
-	char response[256];
+	const size_t response_len = 256;
+	char response[response_len];
 	assert(msg->version == HTTP11);
-	strcpy(response, "HTTP/1.1");
+	strncpy(response, "HTTP/1.1", response_len);
 	uint8_t len = strlen(response);
 	switch (msg->status) {
 	case HTTP_STATUS_200_OK:
-		strcpy(response + len, " 200 OK\r\n");
+		strncpy(response + len, " 200 OK\r\n", response_len - len);
 		break;
 	default:
 		DEBUG("Unknown status code!\n");
@@ -71,19 +72,20 @@ int8_t http_chal_respond(struct http_msg *msg, char *token, int *con)
 	len = strlen(response);
 
 	/* date header */
-	strcpy(response + len, "Date: ");
+	strncpy(response + len, "Date: ", response_len - len);
 	time_t now = time(0);
 	struct tm tm = *gmtime(&now);
 	strftime(response + len + 6, sizeof(response),
 		 "%a, %d %b %Y %H:%M:%S %Z", &tm);
 
 	len = strlen(response);
-	strcpy(response + len,
-	       "\r\n"
-	       "Server: acme-client\r\n"
-	       "Content-Type: application/octet-stream\r\n\r\n");
+	strncpy(response + len,
+		"\r\n"
+		"Server: acme-client\r\n"
+		"Content-Type: application/octet-stream\r\n\r\n",
+		response_len - len);
 	len = strlen(response);
-	strcpy(response + len, token);
+	strncpy(response + len, token, response_len - len);
 	send(*con, response, strlen(response), 0);
 	shutdown(*con, SHUT_RDWR);
 	return 0;
@@ -114,8 +116,9 @@ int8_t http_parse(char *buf, uint16_t len, struct http_msg *msg)
 		return -1;
 	}
 	if (split) {
-		msg->request_target = malloc(strlen(split) + 1);
-		strcpy(msg->request_target, split);
+		size_t len = strlen(split) + 1;
+		msg->request_target = malloc(len);
+		strncpy(msg->request_target, split, len);
 		split = strtok(NULL, " ");
 	} else {
 		ERROR("HTTP parse error\n");

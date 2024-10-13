@@ -100,8 +100,9 @@ int8_t acme_server_add_resource(struct acme_server *server,
 				enum acme_rsrc resource, char *url)
 {
 	assert(url != NULL);
-	server->resources[resource] = malloc(strlen(url) + 1);
-	strcpy(server->resources[resource], url);
+	size_t len = strlen(url) + 1;
+	server->resources[resource] = malloc(len);
+	strncpy(server->resources[resource], url, len);
 	return 0;
 }
 int8_t acme_server_add_cert(struct acme_server *server, char *ca_cert)
@@ -115,8 +116,9 @@ int8_t acme_server_add_cert(struct acme_server *server, char *ca_cert)
 		      strerror(errno));
 		return -1;
 	}
-	server->ca_cert = malloc(strlen(ca_cert) + 1);
-	strcpy(server->ca_cert, ca_cert);
+	size_t len = strlen(ca_cert) + 1;
+	server->ca_cert = malloc(len);
+	strncpy(server->ca_cert, ca_cert, len);
 	return 0;
 }
 
@@ -240,8 +242,9 @@ int8_t acme_fsm_cert(struct acme_account *client, struct acme_server *server,
 	case ACME_STATE_GET_CERT:
 		DEBUG("Certificate is ready.\n");
 		if (!acme_get_cert(client, server)) {
-			acme_cert_chain = malloc(strlen(acme_srv_response) + 1);
-			strcpy(acme_cert_chain, acme_srv_response);
+			size_t len = strlen(acme_srv_response) + 1;
+			acme_cert_chain = malloc(len);
+			strncpy(acme_cert_chain, acme_srv_response, len);
 			free(acme_srv_response);
 			acme_srv_response = NULL;
 
@@ -271,8 +274,9 @@ size_t acme_header_cb(char *buf, size_t size, size_t nitems, void *packet_info)
          * that account object */
 	if (!strncmp("Location", buf, 8)) {
 		/* this is way to much memory but it sure is enough */
-		acme_location = realloc(acme_location, size * nitems);
-		strcpy(acme_location, buf + 10);
+		size_t len = size * nitems;
+		acme_location = realloc(acme_location, len);
+		strncpy(acme_location, buf + 10, len);
 		acme_location[strlen(acme_location) - 2] = '\0';
 	}
 
@@ -282,7 +286,7 @@ size_t acme_header_cb(char *buf, size_t size, size_t nitems, void *packet_info)
 		if (acme_nonce == NULL) {
 			acme_nonce = calloc(nitems + 1, size);
 		}
-		strcpy(acme_nonce, buf + 14);
+		strncpy(acme_nonce, buf + 14, size);
 		acme_nonce[strlen(acme_nonce) - 2] = '\0';
 	}
 
@@ -414,8 +418,9 @@ int8_t acme_new_acc(struct acme_account *client, struct acme_server *server)
 	free(stripped_jwk);
 
 	/* The key thumprint is used later to reply to challenges */
-	acme_thumbprint = realloc(acme_thumbprint, strlen(hash_str) + 1);
-	strcpy(acme_thumbprint, hash_str);
+	size_t len = strlen(hash_str) + 1;
+	acme_thumbprint = realloc(acme_thumbprint, len);
+	strncpy(acme_thumbprint, hash_str, len);
 	cJSON_Delete(jwk);
 
 	/* Assemble the JWT */
@@ -452,16 +457,17 @@ int8_t acme_new_acc(struct acme_account *client, struct acme_server *server)
 			      status->valuestring);
 			return -1;
 		}
-		acme_kid = malloc(strlen(acme_location) + 1);
-		strcpy(acme_kid, acme_location);
+		size_t len = strlen(acme_location) + 1;
+		acme_kid = malloc(len);
+		strncpy(acme_kid, acme_location, len);
 		if (verbose) {
 			ERROR("Account %s is valid\n", acme_kid);
 		}
 		client->status = ACME_STATUS_VALID;
 		if (cJSON_IsString(orders)) {
-			client->order_list =
-				malloc(strlen(orders->valuestring) + 1);
-			strcpy(client->order_list, orders->valuestring);
+			size_t len = strlen(orders->valuestring) + 1;
+			client->order_list = malloc(len);
+			strncpy(client->order_list, orders->valuestring, len);
 		}
 	} else {
 		DEBUG("Account is not valid.\n");
@@ -595,8 +601,9 @@ int8_t acme_new_order(struct acme_account *client, struct acme_server *server,
 		if (cJSON_IsString(type) && cJSON_IsString(value)) {
 			struct acme_identifier *new_id =
 				malloc(sizeof(struct acme_identifier));
-			new_id->value = malloc(strlen(value->valuestring) + 1);
-			strcpy(new_id->value, value->valuestring);
+			size_t len = strlen(value->valuestring) + 1;
+			new_id->value = malloc(len);
+			strncpy(new_id->value, value->valuestring, len);
 			new_id->type = ACME_ID_DNS;
 			client->order->identifiers = id_list_append(
 				client->order->identifiers, new_id);
@@ -608,9 +615,10 @@ int8_t acme_new_order(struct acme_account *client, struct acme_server *server,
 	}
 
 	if (cJSON_IsString(finalize)) {
-		client->order->finalize_url =
-			malloc(strlen(finalize->valuestring) + 1);
-		strcpy(client->order->finalize_url, finalize->valuestring);
+		size_t len = strlen(finalize->valuestring) + 1;
+		client->order->finalize_url = malloc(len);
+		strncpy(client->order->finalize_url, finalize->valuestring,
+			len);
 	} else {
 		ERROR("Server response parse error\n");
 		acme_print_srv_response();
@@ -622,8 +630,9 @@ int8_t acme_new_order(struct acme_account *client, struct acme_server *server,
 	if (client->order->status == ACME_STATUS_PENDING) {
 		DEBUG("Order %s updated successfully.\n", acme_location);
 	}
-	client->order->order_url = malloc(strlen(acme_location) + 1);
-	strcpy(client->order->order_url, acme_location);
+	size_t len = strlen(acme_location) + 1;
+	client->order->order_url = malloc(len);
+	strncpy(client->order->order_url, acme_location, len);
 	cJSON_Delete(srv_resp);
 	free(acme_srv_response);
 	acme_srv_response = NULL;
@@ -741,9 +750,10 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 			need_chal = 1;
 			new_id->type = ACME_ID_DNS;
 			if (cJSON_IsString(id_value)) {
-				new_id->value = malloc(
-					strlen(id_value->valuestring) + 1);
-				strcpy(new_id->value, id_value->valuestring);
+				size_t len = strlen(id_value->valuestring) + 1;
+				new_id->value = malloc(len);
+				strncpy(new_id->value, id_value->valuestring,
+					len);
 			} else {
 				ERROR("Identifier value is not a string.\n");
 			}
@@ -782,9 +792,10 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 					return -1;
 				}
 
-				new_chal->token =
-					malloc(strlen(token->valuestring) + 1);
-				strcpy(new_chal->token, token->valuestring);
+				size_t len = strlen(token->valuestring) + 1;
+				new_chal->token = malloc(len);
+				strncpy(new_chal->token, token->valuestring,
+					len);
 
 				if (!(strcmp(type->valuestring, "http-01"))) {
 					new_chal->type = ACME_CHAL_HTTP01;
@@ -792,9 +803,9 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 				if (!(strcmp(type->valuestring, "dns-01"))) {
 					new_chal->type = ACME_CHAL_DNS01;
 				}
-				new_chal->url =
-					malloc(strlen(url->valuestring) + 1);
-				strcpy(new_chal->url, url->valuestring);
+				len = strlen(url->valuestring) + 1;
+				new_chal->url = malloc(len);
+				strncpy(new_chal->url, url->valuestring, len);
 				new_auth->challenges = chal_list_append(
 					new_auth->challenges, new_chal);
 				free(new_chal->token);
@@ -845,10 +856,12 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 
 char *acme_get_token(char *url)
 {
-	char *token = malloc(256);
-	strcpy(token, url + strlen("/.well-known/acme-challenge/"));
-	strcpy(token + strlen(token), ".");
-	strcpy(token + strlen(token), acme_thumbprint);
+	const size_t len = 256;
+	const char *well_known_prefix = "/.well-known/acme-challenge/";
+	char *token = malloc(len);
+	strncpy(token, url + strlen(well_known_prefix), len);
+	strncpy(token + strlen(token), ".", len - strlen(token));
+	strncpy(token + strlen(token), acme_thumbprint, len - strlen(token));
 	return token;
 }
 
@@ -965,9 +978,10 @@ int8_t acme_finalize(struct acme_account *client, struct acme_server *server,
 
 	EVP_PKEY *csr_key = NULL;
 	X509_REQ *csr;
-	char csr_pem[4096] = { 0 };
-	crypt_new_csr(&csr_key, &csr, csr_pem, sizeof(csr_pem), domain_list);
-	crypt_strip_csr(csr_pem);
+	const size_t csr_pem_len = 4096;
+	char csr_pem[csr_pem_len];
+	crypt_new_csr(&csr_key, &csr, csr_pem, csr_pem_len, domain_list);
+	crypt_strip_csr(csr_pem, csr_pem_len);
 	b64_normal2url(csr_pem);
 
 	/* Set certificate key to 0600 permissions */
@@ -978,10 +992,11 @@ int8_t acme_finalize(struct acme_account *client, struct acme_server *server,
 	fclose(keyfile);
 	EVP_PKEY_free(csr_key);
 
-	char payload[4096];
-	strcpy(payload, "{\"csr\":\"");
-	strcpy(payload + strlen(payload), csr_pem);
-	strcpy(payload + strlen(payload), "\"}");
+	const size_t len = 4096;
+	char payload[len];
+	strncpy(payload, "{\"csr\":\"", len);
+	strncpy(payload + strlen(payload), csr_pem, len - strlen(payload));
+	strncpy(payload + strlen(payload), "\"}", len - strlen(payload));
 
 	char *token = crypt_mktoken(client->key, header, payload);
 
@@ -1055,10 +1070,10 @@ int8_t acme_get_order_status(struct acme_account *client,
 			if (client->order->cert_url != NULL) {
 				free(client->order->cert_url);
 			}
-			client->order->cert_url =
-				malloc(strlen(certificate->valuestring) + 1);
-			strcpy(client->order->cert_url,
-			       certificate->valuestring);
+			size_t len = strlen(certificate->valuestring) + 1;
+			client->order->cert_url = malloc(len);
+			strncpy(client->order->cert_url,
+				certificate->valuestring, len);
 		}
 		cJSON_Delete(srv_resp);
 		return 1;

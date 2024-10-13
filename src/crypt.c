@@ -189,8 +189,7 @@ int8_t crypt_sign(const char *msg, EVP_PKEY *key, char *signature,
 		//ptr += 2;
 	}
 
-	assert(tlen > strlen(msg));
-	strcpy(signature, msg);
+	strncpy(signature, msg, tlen);
 
 	char sig[4096] = { 0 };
 	base64url(cat_sig_b, sig, 64, sizeof(sig));
@@ -232,14 +231,17 @@ int8_t crypt_new_csr(EVP_PKEY **key, X509_REQ **csr, char *csr_pem,
 	while (domains != NULL) {
 		char domain[128];
 		domains = string_list_pop_back(domains, domain, sizeof(domain));
-		char alt_name[128] = { 0 };
+		const size_t alt_name_len = 128;
+		char alt_name[alt_name_len];
 		if (strlen(san) > 0) {
-			strcpy(alt_name, ", DNS:");
+			strncpy(alt_name, ", DNS:", alt_name_len);
 		} else {
-			strcpy(alt_name, "DNS:");
+			strncpy(alt_name, "DNS:", alt_name_len);
 		}
-		strcpy(alt_name + strlen(alt_name), domain);
-		strcpy(san + strlen(san), alt_name);
+		strncpy(alt_name + strlen(alt_name), domain,
+			alt_name_len - strlen(alt_name));
+		strncpy(san + strlen(san), alt_name,
+			alt_name_len - strlen(san));
 	}
 	X509_EXTENSION *ex =
 		X509V3_EXT_conf_nid(NULL, NULL, NID_subject_alt_name, san);
@@ -260,7 +262,7 @@ int8_t crypt_new_csr(EVP_PKEY **key, X509_REQ **csr, char *csr_pem,
 	return 0;
 }
 
-int8_t crypt_strip_csr(char *csr_pem)
+int8_t crypt_strip_csr(char *csr_pem, size_t len)
 {
 	char b64[4096];
 	memcpy(b64, csr_pem + strlen("-----BEGIN CERTIFICATE REQUEST-----\n"),
@@ -277,7 +279,7 @@ int8_t crypt_strip_csr(char *csr_pem)
 		i++;
 	}
 	b64_[j] = '\0';
-	strcpy(csr_pem, b64_);
+	strncpy(csr_pem, b64_, len);
 	return 0;
 }
 

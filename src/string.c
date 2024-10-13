@@ -34,8 +34,9 @@ struct string_node *string_list_append(struct string_node *head,
 	if (head == NULL) {
 		head = malloc(sizeof(struct string_node));
 		head->next = NULL;
-		head->string = malloc(strlen(new_string) + 1);
-		strcpy(head->string, new_string);
+		size_t len = strlen(new_string) + 1;
+		head->string = malloc(len);
+		strncpy(head->string, new_string, len);
 		head->strlen = strlen(head->string);
 		return head;
 	}
@@ -47,8 +48,9 @@ struct string_node *string_list_append(struct string_node *head,
 	/* allocate new node and append to list */
 	struct string_node *new_node = malloc(sizeof(struct string_node));
 	new_node->next = NULL;
-	new_node->string = malloc(strlen(new_string) + 1);
-	strcpy(new_node->string, new_string);
+	size_t len = strlen(new_string) + 1;
+	new_node->string = malloc(len);
+	strncpy(new_node->string, new_string, len);
 	new_node->strlen = strlen(new_node->string);
 	current->next = new_node;
 	return head;
@@ -88,9 +90,9 @@ struct string_node *string_list_copy(struct string_node *list)
 	copy = malloc(sizeof(struct string_node));
 	copy->next = NULL;
 	char *str = list->string;
-	int len = strlen(str) + 1;
+	size_t len = strlen(str) + 1;
 	copy->string = malloc(len);
-	strcpy(copy->string, list->string);
+	strncpy(copy->string, list->string, len);
 	copy->strlen = list->strlen;
 
 	struct string_node *current_orig = list->next;
@@ -101,8 +103,9 @@ struct string_node *string_list_copy(struct string_node *list)
 		current_copy = malloc(sizeof(struct string_node));
 		prev_copy->next = current_copy;
 		current_copy->next = NULL;
-		current_copy->string = malloc(strlen(current_orig->string) + 1);
-		strcpy(current_copy->string, current_orig->string);
+		len = strlen(current_orig->string) + 1;
+		current_copy->string = malloc(len);
+		strncpy(current_copy->string, current_orig->string, len);
 		current_copy->strlen = current_orig->strlen;
 
 		current_orig = current_orig->next;
