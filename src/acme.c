@@ -286,7 +286,7 @@ size_t acme_header_cb(char *buf, size_t size, size_t nitems, void *packet_info)
 		if (acme_nonce == NULL) {
 			acme_nonce = calloc(nitems + 1, size);
 		}
-		strncpy(acme_nonce, buf + 14, size);
+		strncpy(acme_nonce, buf + 14, nitems + 1);
 		acme_nonce[strlen(acme_nonce) - 2] = '\0';
 	}
 
