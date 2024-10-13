@@ -480,7 +480,7 @@ int8_t acme_new_acc(struct acme_account *client, struct acme_server *server)
 			acme_new_nonce(server);
 		}
 
-		acme_print_srv_response(srv_resp);
+		acme_print_srv_response();
 		cJSON_Delete(srv_resp);
 		free(acme_srv_response);
 		acme_srv_response = NULL;
