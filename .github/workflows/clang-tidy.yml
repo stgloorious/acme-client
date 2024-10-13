@@ -1,0 +1,30 @@
+name: Lint Clang-Tidy
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: Release
+
+jobs:
+  clang-tidy:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Updating package repository
+      run: sudo apt update && sudo apt -y upgrade
+
+    - name: Installing necessary packages 
+      run: sudo apt -y install openssl libcurl4-openssl-dev libcjson-dev
+
+    - name: Build
+      run: cmake  -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -B build && cd build && make
+
+    - name: Clang-Tidy
+      run: clang-tidy -p build/ --warnings-as-errors='*' src/*.c
