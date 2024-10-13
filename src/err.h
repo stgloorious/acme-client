@@ -19,9 +19,9 @@
  *
  */
 
-#define ERROR(...) fprintf(stderr, __VA_ARGS__)
-#define NOTICE(...) fprintf(stdout, __VA_ARGS__)
-#define DEBUG(...)                            \
+#define ERROR(str, ...) fprintf(stderr, str, ##__VA_ARGS__)
+#define NOTICE(str, ...) fprintf(stdout, str, ##__VA_ARGS__)
+#define DEBUG(str,...)                            \
 	if (verbose) {                        \
-		fprintf(stdout, __VA_ARGS__); \
+		fprintf(stdout, str, ##__VA_ARGS__); \
 	}
