@@ -856,9 +856,9 @@ int8_t acme_get_auth(struct acme_account *client, struct acme_server *server)
 
 char *acme_get_token(char *url)
 {
-	const size_t len = 256;
+	const size_t len = 255;
 	const char *well_known_prefix = "/.well-known/acme-challenge/";
-	char *token = malloc(len);
+	char *token = calloc(len + 1, 1);
 	strncpy(token, url + strlen(well_known_prefix), len);
 	strncpy(token + strlen(token), ".", len - strlen(token));
 	strncpy(token + strlen(token), acme_thumbprint, len - strlen(token));
