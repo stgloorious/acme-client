@@ -6,6 +6,7 @@ file(GLOB sources *.c)
 
 # Executable binary
 add_executable(acme-client ${sources})
+set_property(TARGET acme-client PROPERTY C_STANDARD 99)
 
 target_link_libraries(acme-client OpenSSL::SSL)
 target_link_libraries(acme-client OpenSSL::Crypto)
